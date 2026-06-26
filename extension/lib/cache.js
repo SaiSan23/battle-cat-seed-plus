@@ -1,0 +1,75 @@
+// 比較頁資料快取：以 (seed, event, count, force) 為鍵，存到 localStorage。
+// 條件未改→刷新頁面也直接套用、不重抓。純函式（key/序列化）可測；localStorage 存取做防呆。
+
+// v2：快取鍵納入 last（last 影響 1A 是否為重複稀有），舊版 v1（無 last）一律失效
+// v3：guaranteed 新增換軌落點 to，舊快取無此欄位 → 升版使其失效，確保拿到落點
+const NS = 'bcsp:v3:';
+
+export function cacheKey({ seed, event, count, force, last }) {
+  return `${NS}${seed}|${event}|${count}|${force || ''}|${last || ''}`;
+}
+
+// parseRollTable 結果含 Map，需轉成可 JSON 化的形式
+export function serializeParsed(parsed) {
+  return { hasGuaranteed: parsed.hasGuaranteed, cells: [...parsed.cells.entries()] };
+}
+
+export function deserializeParsed(obj) {
+  return { hasGuaranteed: obj.hasGuaranteed, cells: new Map(obj.cells) };
+}
+
+function store() {
+  return typeof localStorage !== 'undefined' ? localStorage : null;
+}
+
+// 讀取快取：回傳 { name, parsed } 或 null
+export function cacheGet(key) {
+  const s = store();
+  if (!s) return null;
+  try {
+    const raw = s.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    return { name: obj.name, parsed: deserializeParsed(obj.parsed) };
+  } catch {
+    return null;
+  }
+}
+
+// 寫入快取；配額滿時清掉本命名空間再試一次
+export function cacheSet(key, { name, parsed }) {
+  const s = store();
+  if (!s) return;
+  const payload = JSON.stringify({ name, parsed: serializeParsed(parsed) });
+  try {
+    s.setItem(key, payload);
+  } catch {
+    try {
+      clearNamespace(s);
+      s.setItem(key, payload);
+    } catch {
+      /* 放棄快取，不影響功能 */
+    }
+  }
+}
+
+function clearNamespace(s) {
+  const keys = [];
+  for (let i = 0; i < s.length; i++) {
+    const k = s.key(i);
+    if (k && k.startsWith('bcsp:')) keys.push(k); // 含舊版本孤兒
+  }
+  keys.forEach((k) => s.removeItem(k));
+}
+
+// 清除本擴充的所有快取（localStorage 不存在時為 no-op）；回傳是否成功
+export function clearCache() {
+  const s = store();
+  if (!s) return false;
+  try {
+    clearNamespace(s);
+    return true;
+  } catch {
+    return false;
+  }
+}
