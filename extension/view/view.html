@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多卡池比較</title>
+<link rel="stylesheet" href="view.css">
+
+<header id="topbar">
+  <h1>多卡池比較</h1>
+  <span id="seed-label" class="badge"></span>
+</header>
+
+<div id="toolbar">
+  <label class="field">顯示抽數
+    <input id="count" type="number" min="10" max="500" step="10">
+  </label>
+  <label class="field">模擬保證
+    <select id="guar">
+      <option value="">無</option>
+      <option value="2">2</option>
+      <option value="7">7</option>
+      <option value="11">11（一般）</option>
+      <option value="15">15（Buster step-up）</option>
+    </select>
+  </label>
+  <button id="clear-cache" type="button" class="btn-secondary">清除快取</button>
+  <label class="field">找
+    <select id="find-rarity">
+      <option value="">—</option>
+      <option value="rare">稀有</option>
+      <option value="supa">激稀有</option>
+      <option value="uber">超激稀有</option>
+      <option value="exclusive">Exclusive</option>
+      <option value="legend">傳說</option>
+    </select>
+  </label>
+  <input id="find-name" type="search" placeholder="貓名…">
+  <span id="progress" class="spacer-left"></span>
+</div>
+
+<div id="legend">
+  <span class="lg"><i class="rare"></i>稀有</span>
+  <span class="lg"><i class="supa"></i>激稀有</span>
+  <span class="lg"><i class="supa_fest"></i>激稀有(祭)</span>
+  <span class="lg"><i class="uber"></i>超激稀有</span>
+  <span class="lg"><i class="uber_fest"></i>超激稀有(祭)</span>
+  <span class="lg"><i class="exclusive"></i>Exclusive</span>
+  <span class="lg"><i class="legend"></i>傳說稀有</span>
+</div>
+<div id="progress-bar" hidden><div id="progress-fill"></div></div>
+<div id="progress-list"></div>
+<div id="banner-toggles"></div>
+<div id="errors"></div>
+<div id="find-popup" hidden>
+  <div id="find-resize" title="拖曳調整高度"></div>
+  <div id="find-popup-head">
+    <span class="find-title">🔍 找到 <span id="find-count">0</span> 個</span>
+    <button id="find-toggle" type="button" title="收合 / 展開">▼</button>
+  </div>
+  <div id="find-body"></div>
+</div>
+<div id="table-wrap"><table id="grid"></table></div>
+
+<script type="module" src="view.js"></script>
