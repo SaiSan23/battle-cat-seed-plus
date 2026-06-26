@@ -1,0 +1,54 @@
+:root {
+  --surface: #fff;
+  --border: #e4e7ec;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #3b5bdb;
+  --accent-weak: #eef1fe;
+  --rc: 6px;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 360px; margin: 0; padding: 12px;
+  color: var(--text); background: #f6f7f9;
+  font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+}
+
+#status { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+#status .badge {
+  font: 12px/1 var(--mono); color: var(--accent); background: var(--accent-weak);
+  border: 1px solid #d6def9; padding: 4px 8px; border-radius: 999px;
+}
+
+#filter {
+  width: 100%; font: inherit; padding: 7px 10px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: var(--rc); background: var(--surface);
+}
+#filter:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+
+#banner-list {
+  list-style: none; margin: 0 0 10px; padding: 6px;
+  max-height: 340px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--rc);
+}
+#banner-list .group-label {
+  font-weight: 700; color: var(--muted); font-size: 11px;
+  margin: 8px 4px 4px; text-transform: none;
+}
+#banner-list li:not(.group-label) { border-radius: 4px; }
+#banner-list li:not(.group-label):hover { background: var(--accent-weak); }
+#banner-list label {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+  cursor: pointer; font-size: 12px;
+}
+#banner-list input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+
+#load {
+  width: 100%; padding: 9px; font: inherit; font-weight: 700; cursor: pointer;
+  color: #fff; background: var(--accent); border: none; border-radius: var(--rc);
+}
+#load:hover { background: #2f49b8; }
+#load:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-weak); }
