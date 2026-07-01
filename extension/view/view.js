@@ -24,6 +24,7 @@ document.querySelector('#seed-label').textContent = `（種子 ${seed}）`;
 document.querySelector('#count').value = count;
 
 const hidden = new Set(); // 被隱藏的 bannerId
+let currentEntries = []; // 目前已載入的 entries（供開關重繪，不需重抓）
 
 function makeEntry(id, name, parsed, cached) {
   const date = bannerDateRange(name);
@@ -80,55 +81,71 @@ function renderTable(entries) {
   const merged = mergeBanners(entries);
   const visible = entries.filter((e) => !hidden.has(e.banner.id));
   lastVisibleShorts = visible.map((e) => e.banner.short);
+  const showB = document.querySelector('#show-b').checked;
+  const sub = showB ? 2 : 1; // 每卡池子欄數
   const table = document.querySelector('#grid');
+  const { useCount, forceGuaranteed } = currentParams();
 
-  // 第 1 列：位置（跨兩列）＋日期（相鄰相同者跨欄合併）
-  const dateRow = ['<th class="pos" rowspan="2">位置</th>'];
+  // 單格：某位置（如 12B）× 卡池 → <td>；無資料回空格
+  function cellHtml(pos, e, bi) {
+    const c = merged.byPos.get(pos)?.get(e.banner.id);
+    if (!c) return '<td></td>';
+    // 重複稀有：真正拿到的是重抽結果，並換軌；天然那隻放 title 供參考
+    const cls = [c.dupe ? c.dupe.rarity : c.rarity];
+    if (c.isNext) cls.push('next');
+    if (c.dupe) cls.push('dupe');
+    if (pos.endsWith('B')) cls.push('btrack');
+    const mainName = c.dupe ? c.dupe.name : c.name;
+    const dupeNote = c.dupe ? `<div class="dupe-note">重複稀有 ↪ ${esc(c.dupe.to)}</div>` : '';
+    const guarTo = c.guaranteed?.to ? ` ↪ ${esc(c.guaranteed.to)}` : '';
+    const guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
+    const title = c.dupe ? ` title="天然 ${esc(c.name)}（重複）→ 實得 ${esc(c.dupe.name)}"` : '';
+    const rr = c.dupe ? c.dupe.rarity : c.rarity;
+    return (
+      `<td class="${cls.join(' ')}"${title} data-r="${esc(rr)}" data-n="${esc(mainName)}"` +
+      ` data-pos="${esc(pos)}" data-bi="${bi}">${esc(mainName)}${dupeNote}${guar}</td>`
+    );
+  }
+
+  // 第 1 列：位置（跨表頭列）＋日期（相鄰相同者跨欄合併，colspan × 子欄數）
+  const dateRow = [`<th class="pos" rowspan="${showB ? 3 : 2}">位置</th>`];
   for (let i = 0; i < visible.length; ) {
     const d = visible[i].banner.date;
     let span = 1;
     while (i + span < visible.length && visible[i + span].banner.date === d) span++;
-    dateRow.push(`<th class="date" colspan="${span}">${esc(d) || '—'}</th>`);
+    dateRow.push(`<th class="date" colspan="${span * sub}">${esc(d) || '—'}</th>`);
     i += span;
   }
 
-  // 第 2 列：簡稱（title 掛完整名稱）＋在 godfat 開啟
-  const { useCount, forceGuaranteed } = currentParams();
+  // 第 2 列：簡稱（colspan=子欄數，title 掛完整名稱）＋在 godfat 開啟
   const nameRow = [];
   for (const e of visible) {
     const link = buildEventUrl({ seed, event: e.banner.id, count: useCount, lang, last, forceGuaranteed });
     nameRow.push(
-      `<th title="${esc(e.banner.name)}">${esc(e.banner.short)}` +
+      `<th colspan="${sub}" title="${esc(e.banner.name)}">${esc(e.banner.short)}` +
         `<a class="gf" href="${link}" target="_blank" title="在 godfat 開啟此卡池">${GF_ICON}</a></th>`
     );
   }
 
-  const out = [`<thead><tr>${dateRow.join('')}</tr><tr>${nameRow.join('')}</tr></thead>`];
+  // 表頭：B 軌開啟時多第 3 列 A/B 子標；最後一列掛 .hend 供底線
+  const headRows = [`<tr>${dateRow.join('')}</tr>`];
+  if (showB) {
+    headRows.push(`<tr>${nameRow.join('')}</tr>`);
+    const abRow = visible.map(() => '<th class="ab">A</th><th class="ab btrack">B</th>').join('');
+    headRows.push(`<tr class="hend">${abRow}</tr>`);
+  } else {
+    headRows.push(`<tr class="hend">${nameRow.join('')}</tr>`);
+  }
+
+  const out = [`<thead>${headRows.join('')}</thead>`];
   const body = [];
-  for (const pos of merged.positions) {
-    const tds = [`<td class="pos">${pos}</td>`];
+  for (const n of merged.numbers) {
+    const posLabel = showB ? String(n) : `${n}A`;
+    const tds = [`<td class="pos">${posLabel}</td>`];
     for (let bi = 0; bi < visible.length; bi++) {
       const e = visible[bi];
-      const c = merged.byPos.get(pos)?.get(e.banner.id);
-      if (!c) {
-        tds.push('<td></td>');
-        continue;
-      }
-      // 重複稀有：真正拿到的是重抽結果，並換軌；天然那隻放 title 供參考
-      const cls = [c.dupe ? c.dupe.rarity : c.rarity];
-      if (c.isNext) cls.push('next');
-      if (c.dupe) cls.push('dupe');
-      const mainName = c.dupe ? c.dupe.name : c.name;
-      const dupeNote = c.dupe ? `<div class="dupe-note">重複稀有 ↪ ${esc(c.dupe.to)}</div>` : '';
-      const guarTo = c.guaranteed?.to ? ` ↪ ${esc(c.guaranteed.to)}` : '';
-      const guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
-      const title = c.dupe ? ` title="天然 ${esc(c.name)}（重複）→ 實得 ${esc(c.dupe.name)}"` : '';
-      const rr = c.dupe ? c.dupe.rarity : c.rarity;
-      tds.push(
-        `<td class="${cls.join(' ')}"${title} data-r="${esc(rr)}" data-n="${esc(mainName)}"` +
-          ` data-pos="${esc(pos)}" data-bi="${bi}">` +
-          `${esc(mainName)}${dupeNote}${guar}</td>`
-      );
+      tds.push(cellHtml(`${n}A`, e, bi));
+      if (showB) tds.push(cellHtml(`${n}B`, e, bi));
     }
     body.push(`<tr>${tds.join('')}</tr>`);
   }
@@ -145,10 +162,6 @@ const RARITY_GROUP = {
   exclusive: ['exclusive'],
   legend: ['legend'],
 };
-function posSortKey(pos) {
-  const n = parseInt(pos, 10);
-  return (pos.endsWith('A') ? 0 : 1) * 1e6 + n; // 先 A 後 B、再依抽數
-}
 
 // 票抽卡池：只能用特殊票抽，貓咪皆為超激稀有以上（godfat 為對齊種子位置仍標天然稀有度）
 const ALWAYS_SHORTS = new Set(['白金', '黑金']);
@@ -202,36 +215,50 @@ function renderFindPopup(active) {
   findWasActive = true;
   updateFindToggle();
 
-  const rows = [...new Set(findMatches.map((m) => m.pos))].sort((a, b) => posSortKey(a) - posSortKey(b));
-  const matchByCell = new Map(); // `${pos}|${bi}` -> match index
-  findMatches.forEach((m, i) => matchByCell.set(`${m.pos}|${m.bi}`, i));
-
-  // 欄＝有命中的卡池（其他沒命中的卡池不顯示，避免大段空白）
+  const showB = document.querySelector('#show-b').checked;
+  const sub = showB ? 2 : 1;
+  // 列＝命中的抽數（A/B 合併為同一列）；欄＝命中的卡池（B 軌開啟時各拆 A|B 子欄，對齊主表）
+  const rows = [...new Set(findMatches.map((m) => parseInt(m.pos, 10)))].sort((a, b) => a - b);
   const cols = [...new Set(findMatches.map((m) => m.bi))].sort((a, b) => a - b);
+  const matchByCell = new Map(); // `${n}|${bi}|${track}` -> match index
+  findMatches.forEach((m, i) => {
+    const track = m.pos.endsWith('B') ? 'B' : 'A';
+    matchByCell.set(`${parseInt(m.pos, 10)}|${m.bi}|${track}`, i);
+  });
 
   if (!rows.length) {
     document.querySelector('#find-body').innerHTML = '<p class="empty">無符合</p>';
     return;
   }
 
-  const head =
-    '<tr><th>位置</th>' + cols.map((bi) => `<th>${esc(lastVisibleShorts[bi] ?? '?')}</th>`).join('') + '</tr>';
+  const cellFor = (n, bi, track) => {
+    const b = track === 'B' ? ' btrack' : '';
+    const mi = matchByCell.get(`${n}|${bi}|${track}`);
+    if (mi == null) return `<td class="${b.trim()}"></td>`; // 該子欄此抽數非命中 → 留空
+    const m = findMatches[mi];
+    // 色條用原始天然稀有度（保留 godfat 可分辨的底色），比對仍依有效稀有度
+    return `<td class="hit r-${esc(m.origRarity)}${b}" data-i="${mi}" title="${esc(m.name)}">${esc(m.name)}</td>`;
+  };
+
+  const head1 =
+    `<tr><th rowspan="${sub}">位置</th>` +
+    cols.map((bi) => `<th colspan="${sub}">${esc(lastVisibleShorts[bi] ?? '?')}</th>`).join('') +
+    '</tr>';
+  const head2 = showB
+    ? '<tr>' + cols.map(() => '<th class="ab">A</th><th class="ab btrack">B</th>').join('') + '</tr>'
+    : '';
+
   const body = rows
-    .map((pos) => {
+    .map((n) => {
+      const label = showB ? String(n) : `${n}A`;
       const tds = cols
-        .map((bi) => {
-          const mi = matchByCell.get(`${pos}|${bi}`);
-          if (mi == null) return '<td></td>'; // 該卡池此位置非命中（如一般卡池的稀有）→ 留空
-          const m = findMatches[mi];
-          // 色條用原始天然稀有度（保留 godfat 可分辨的底色），比對仍依有效稀有度
-          return `<td class="hit r-${esc(m.origRarity)}" data-i="${mi}" title="${esc(m.name)}">${esc(m.name)}</td>`;
-        })
+        .map((bi) => (showB ? cellFor(n, bi, 'A') + cellFor(n, bi, 'B') : cellFor(n, bi, 'A')))
         .join('');
-      return `<tr><td class="p">${esc(pos)}</td>${tds}</tr>`;
+      return `<tr><td class="p">${esc(label)}</td>${tds}</tr>`;
     })
     .join('');
 
-  document.querySelector('#find-body').innerHTML = `<table class="find-grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  document.querySelector('#find-body').innerHTML = `<table class="find-grid"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
 }
 
 function jumpToMatch(i) {
@@ -313,6 +340,7 @@ async function load() {
   // 依開始日期升冪排序（穩定排序：相同日期維持原順序）
   entries.sort((a, b) => (a.banner.start < b.banner.start ? -1 : a.banner.start > b.banner.start ? 1 : 0));
   progress.textContent = `完成（${entries.length}/${eventIds.length}）`;
+  currentEntries = entries;
   renderToggles(entries);
   renderTable(entries);
   // 進度為載入指示，完成後收起（錯誤另在 #errors 顯示）
@@ -322,6 +350,7 @@ async function load() {
 
 document.querySelector('#count').addEventListener('change', () => load());
 document.querySelector('#guar').addEventListener('change', () => load());
+document.querySelector('#show-b').addEventListener('change', () => renderTable(currentEntries));
 document.querySelector('#find-rarity').addEventListener('change', applyFind);
 document.querySelector('#find-name').addEventListener('input', applyFind);
 document.querySelector('#find-body').addEventListener('click', (ev) => {
