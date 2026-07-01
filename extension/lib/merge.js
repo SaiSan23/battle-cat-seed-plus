@@ -16,5 +16,6 @@ export function mergeBanners(entries) {
     }
   }
   const positions = [...byPos.keys()].sort((p, q) => posSortKey(p) - posSortKey(q));
-  return { positions, anyGuaranteed, byPos };
+  const numbers = [...new Set([...byPos.keys()].map((p) => parseInt(p, 10)))].sort((x, y) => x - y);
+  return { positions, numbers, anyGuaranteed, byPos };
 }

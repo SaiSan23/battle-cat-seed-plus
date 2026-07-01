@@ -119,7 +119,7 @@ table { border-collapse: separate; border-spacing: 0; }
 th, td { padding: 5px 9px; white-space: nowrap; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 thead th { position: sticky; background: var(--surface); z-index: 2; font-size: 12px; }
 thead tr:nth-child(1) th { top: 0; height: 26px; }
-thead tr:nth-child(2) th { top: 26px; box-shadow: 0 1px 0 var(--border); }
+thead tr:nth-child(2) th { top: 26px; }
 thead th.date { text-align: center; font: 11px/1 var(--mono); color: var(--muted); background: #f0f2f7; }
 thead tr:nth-child(2) th { font-weight: 600; color: var(--text); }
 
@@ -182,11 +182,16 @@ td.flash { animation: bcsp-flash 1.3s ease; }
 table.find-grid { border-collapse: separate; border-spacing: 0; font-size: 12px; }
 table.find-grid th, table.find-grid td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px 9px; white-space: nowrap; }
 table.find-grid thead th { position: sticky; top: 0; background: #e9edf5; font-weight: 600; z-index: 3; }
-table.find-grid thead th:first-child, table.find-grid td.p {
+table.find-grid thead tr:nth-child(1) th { height: 27px; }
+table.find-grid thead tr:nth-child(2) th { top: 27px; }
+table.find-grid th.ab { text-align: center; font: 11px/1 var(--mono); color: var(--muted); font-weight: 600; }
+table.find-grid td.btrack, table.find-grid th.ab.btrack { border-right: 2px solid var(--border); }
+table.find-grid td.btrack.hit { background: rgba(0, 0, 0, .025); }
+table.find-grid thead tr:nth-child(1) th:first-child, table.find-grid td.p {
   position: sticky; left: 0; background: #f3f4f7;
   font: 12px/1.4 var(--mono); font-weight: 700; color: var(--muted); text-align: center;
 }
-table.find-grid thead th:first-child { z-index: 5; }
+table.find-grid thead tr:nth-child(1) th:first-child { z-index: 5; }
 table.find-grid td.p { z-index: 2; }
 /* 命中格：中性底＋左側細色條暗示稀有度 */
 table.find-grid td.hit { cursor: pointer; background: var(--surface); border-left: 3px solid var(--border); }
@@ -201,6 +206,16 @@ table.find-grid td.r-legend { border-left-color: darkviolet; }
 .legend .guar { color: #ffd9a0; }
 td.dupe { border-left: 3px solid #b3261e; }
 .dupe-note { font-size: 11px; color: #b3261e; margin-top: 1px; }
+
+/* A/B 子欄 */
+thead tr:nth-child(3) th { top: 52px; }
+thead th.hend { box-shadow: 0 1px 0 var(--border); }
+thead th.ab { text-align: center; font: 11px/1 var(--mono); color: var(--muted); font-weight: 600; }
+/* B 軌整欄淺底（半透明疊加，不覆蓋稀有度底色） */
+tbody td.btrack { box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, .035); }
+tbody tr:hover td.btrack { box-shadow: inset 0 0 0 9999px rgba(59, 91, 219, .10), inset 0 0 0 9999px rgba(0, 0, 0, .035); }
+/* 卡池邊界：B 子欄右緣（即每卡池右緣）較粗分隔 */
+tbody td.btrack, thead th.ab.btrack { border-right: 2px solid var(--border); }
 
 /* 外開圖示 */
 a.gf { color: var(--accent); margin-left: 6px; display: inline-flex; vertical-align: middle; opacity: .65; }

@@ -23,6 +23,11 @@ test('mergeBanners 排序：先 A 軌後 B 軌、依抽數', () => {
   assert.deepEqual(m.positions, ['1A', '2A', '1B']);
 });
 
+test('mergeBanners 回傳 numbers（去重、升冪、涵蓋 A/B 抽數）', () => {
+  const a = { banner: { id: 'A', name: 'A' }, parsed: { hasGuaranteed: false, cells: new Map([['2A', cell('2A', 'x')], ['1B', cell('1B', 'y')], ['1A', cell('1A', 'z')]]) } };
+  assert.deepEqual(mergeBanners([a]).numbers, [1, 2]);
+});
+
 test('mergeBanners anyGuaranteed', () => {
   const a = { banner: { id: 'A', name: 'A' }, parsed: { hasGuaranteed: true, cells: new Map() } };
   assert.equal(mergeBanners([a]).anyGuaranteed, true);
