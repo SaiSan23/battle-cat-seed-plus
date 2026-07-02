@@ -46,3 +46,8 @@
 - Task 6（解析保證欄）：改用 `gu-banner-forced11.html`，解析 pick id **帶 G 字尾**的 `td.cat` → `Cell.guaranteed = {rarity, name}`。
 - Task 10（view）：抓取時加 `force_guaranteed=11`（v1 預設）。
 - **原 v1「含保證」範疇維持不變**，問題已由 `force_guaranteed` 解決。
+
+## dupe-chain-banner.html（2026-07-02 增）
+- 擷取：`seed=3259876338&last=521&event=2026-06-26_1053&lang=tw&count=140`（史塔爾）。
+- 含連鎖重複稀有：`133A` 天然占卜貓（與 132A 重複）→ 重抽格 `133AR`「神槍手貓 -> 134BR」（落點帶 R 字尾）；
+  `134BR`「<- 136A 超能力貓」（箭頭與落點在貓名前）。用於驗證落點 R 字尾與箭頭兩種排列。
