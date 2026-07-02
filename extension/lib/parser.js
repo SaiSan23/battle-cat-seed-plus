@@ -62,8 +62,8 @@ export function parseRollTable(doc) {
     const rarity = rarityOf(td);
     const name = catName(td);
     if (rarity && name) {
-      // 換軌落點：保證抽完後下一抽位置，藏在格子文字的箭頭後（如「-> 11B」）
-      const arrow = td.textContent.match(/(?:->|<-)\s*(\d+[AB])\b/);
+      // 換軌落點：保證抽完後下一抽位置，藏在格子文字的箭頭後（如「-> 11B」）；可帶 R 字尾（落點仍處重複狀態）
+      const arrow = td.textContent.match(/(?:->|<-)\s*(\d+[AB]R?)\b/);
       target.guaranteed = { rarity, name, to: arrow ? arrow[1] : '' };
       hasGuaranteed = true;
     }
@@ -78,8 +78,8 @@ export function parseRollTable(doc) {
     const rarity = rarityOf(td);
     const name = catName(td);
     if (!name) continue;
-    // 換軌落點：cell 文字內 ->/<- 後的位置（如「-> 26B」「<- 28A」）
-    const arrow = td.textContent.match(/(\d+[AB])\b/);
+    // 換軌落點：cell 文字內的位置（如「-> 26B」「<- 28A」）；連鎖重複時帶 R 字尾（如「-> 134BR」）
+    const arrow = td.textContent.match(/(\d+[AB]R?)\b/);
     target.dupe = { name, rarity, to: arrow ? arrow[1] : '' };
   }
   return { hasGuaranteed, cells };

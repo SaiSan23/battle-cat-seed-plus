@@ -90,17 +90,21 @@ function renderTable(entries) {
   function cellHtml(pos, e, bi) {
     const c = merged.byPos.get(pos)?.get(e.banner.id);
     if (!c) return '<td></td>';
-    // 重複稀有：真正拿到的是重抽結果，並換軌；天然那隻放 title 供參考
-    const cls = [c.dupe ? c.dupe.rarity : c.rarity];
+    // 重複稀有：主格顯示天然結果（與 godfat 一致）。重抽格只在「以重複狀態抵達」時觸發
+    // （前一隻與本格天然同名），故降為附註：重抽實得＋換軌落點（帶 R 字尾＝落點仍處重複狀態）。
+    const cls = [c.rarity];
     if (c.isNext) cls.push('next');
     if (c.dupe) cls.push('dupe');
     if (pos.endsWith('B')) cls.push('btrack');
-    const mainName = c.dupe ? c.dupe.name : c.name;
-    const dupeNote = c.dupe ? `<div class="dupe-note">重複稀有 ↪ ${esc(c.dupe.to)}</div>` : '';
+    const mainName = c.name;
+    const dupeTo = c.dupe?.to ? ` ↪ ${esc(c.dupe.to)}` : '';
+    const dupeNote = c.dupe ? `<div class="dupe-note">重複→ ${esc(c.dupe.name)}${dupeTo}</div>` : '';
     const guarTo = c.guaranteed?.to ? ` ↪ ${esc(c.guaranteed.to)}` : '';
     const guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
-    const title = c.dupe ? ` title="天然 ${esc(c.name)}（重複）→ 實得 ${esc(c.dupe.name)}"` : '';
-    const rr = c.dupe ? c.dupe.rarity : c.rarity;
+    const title = c.dupe
+      ? ` title="前一隻同為 ${esc(c.name)} 時視為重複，改抽 ${esc(c.dupe.name)}${c.dupe.to ? `，下一抽 ${esc(c.dupe.to)}` : ''}"`
+      : '';
+    const rr = c.rarity;
     return (
       `<td class="${cls.join(' ')}"${title} data-r="${esc(rr)}" data-n="${esc(mainName)}"` +
       ` data-pos="${esc(pos)}" data-bi="${bi}">${esc(mainName)}${dupeNote}${guar}</td>`
