@@ -50,15 +50,29 @@
 <div id="progress-bar" hidden><div id="progress-fill"></div></div>
 <div id="progress-list"></div>
 <div id="banner-toggles"></div>
+<div id="route-targets" class="chips"></div>
+<div id="route-bar">
+  <button id="plan-route" type="button" class="btn-secondary" disabled>規劃路線</button>
+  <span id="route-hint" class="hint">點格子開選單加入目標；或用下方 Find 搜貓名後「加入命中」</span>
+</div>
 <div id="errors"></div>
 <div id="find-popup" hidden>
   <div id="find-resize" title="拖曳調整高度"></div>
   <div id="find-popup-head">
     <span class="find-title">🔍 找到 <span id="find-count">0</span> 個</span>
+    <button id="find-add-targets" type="button" title="把目前命中的貓加為目標">加入命中</button>
     <button id="find-toggle" type="button" title="收合 / 展開">▼</button>
   </div>
   <div id="find-body"></div>
 </div>
+<div id="route-popup" hidden>
+  <div id="route-popup-head">
+    <span class="find-title">🧭 路線方案</span>
+    <button id="route-close" type="button" title="關閉">×</button>
+  </div>
+  <div id="route-body"></div>
+</div>
+<div id="cell-menu" hidden></div>
 <div id="table-wrap"><table id="grid"></table></div>
 
 <script type="module" src="view.js"></script>

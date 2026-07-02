@@ -1,3 +1,7 @@
 node_modules/
 *.log
 .DS_Store
+
+# Claude Code 個人本地設定
+.claude/settings.local.json
+.claude/statusline.txt

@@ -4,6 +4,7 @@ import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
 import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache } from '../lib/cache.js';
+import { planRoutes } from '../lib/route.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -25,6 +26,8 @@ document.querySelector('#count').value = count;
 
 const hidden = new Set(); // 被隱藏的 bannerId
 let currentEntries = []; // 目前已載入的 entries（供開關重繪，不需重抓）
+const routeTargets = new Map(); // id -> { id, kind, label, accept:Set<'bid|pos'> }
+let lastPlanResult = null; // 最近一次規劃結果
 
 function makeEntry(id, name, parsed, cached) {
   const date = bannerDateRange(name);
@@ -105,9 +108,10 @@ function renderTable(entries) {
       ? ` title="前一隻同為 ${esc(c.name)} 時視為重複，改抽 ${esc(c.dupe.name)}${c.dupe.to ? `，下一抽 ${esc(c.dupe.to)}` : ''}"`
       : '';
     const rr = c.rarity;
+    if (routeTargets.has(`cell:${e.banner.id}|${pos}`)) cls.push('target');
     return (
       `<td class="${cls.join(' ')}"${title} data-r="${esc(rr)}" data-n="${esc(mainName)}"` +
-      ` data-pos="${esc(pos)}" data-bi="${bi}">${esc(mainName)}${dupeNote}${guar}</td>`
+      ` data-pos="${esc(pos)}" data-bi="${bi}" data-bid="${esc(e.banner.id)}">${esc(mainName)}${dupeNote}${guar}</td>`
     );
   }
 
@@ -156,6 +160,7 @@ function renderTable(entries) {
   out.push(`<tbody>${body.join('')}</tbody>`);
   table.innerHTML = out.join('');
   applyFind(); // 重新渲染後重套高亮
+  if (selectedPlan) showPlanPath(selectedPlan); // 路線高亮同樣重套（B 軌開關/卡池顯隱後不消失）
 }
 
 // Find/高亮：依稀有度與貓名在表中標記符合的格子
@@ -351,6 +356,203 @@ async function load() {
   document.querySelector('#progress-list').innerHTML = '';
   document.querySelector('#progress-bar').hidden = true;
 }
+
+// ── 路線目標選取 ──────────────────────────────────────────────
+function catAccept(name) {
+  const acc = new Set();
+  const merged = mergeBanners(currentEntries);
+  for (const [pos, byBanner] of merged.byPos) {
+    for (const [bid, c] of byBanner) if (c.name === name || c.dupe?.name === name) acc.add(`${bid}|${pos}`);
+  }
+  return acc;
+}
+function toggleCellTarget(bid, pos, name) {
+  const id = `cell:${bid}|${pos}`;
+  if (routeTargets.has(id)) routeTargets.delete(id);
+  else routeTargets.set(id, { id, kind: 'cell', name, label: `${pos} ${name}`, accept: new Set([`${bid}|${pos}`]) });
+  renderTargetChips();
+  renderTable(currentEntries);
+}
+function addFindAsTargets() {
+  const names = [...new Set(findMatches.map((m) => m.name))];
+  for (const name of names) {
+    const id = `cat:${name}`;
+    if (!routeTargets.has(id)) routeTargets.set(id, { id, kind: 'cat', name, label: name, accept: catAccept(name) });
+  }
+  renderTargetChips();
+  renderTable(currentEntries);
+}
+function renderTargetChips() {
+  const box = document.querySelector('#route-targets');
+  box.innerHTML = '';
+  for (const t of routeTargets.values()) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${esc(t.label)} <button title="移除" data-id="${esc(t.id)}">×</button>`;
+    box.appendChild(chip);
+  }
+  document.querySelector('#plan-route').disabled = routeTargets.size === 0;
+}
+
+function toggleCatTarget(name) {
+  const id = `cat:${name}`;
+  if (routeTargets.has(id)) routeTargets.delete(id);
+  else routeTargets.set(id, { id, kind: 'cat', name, label: name, accept: catAccept(name) });
+  renderTargetChips();
+  renderTable(currentEntries);
+}
+
+// ── 格子選單（左鍵開啟；右鍵不攔截維持瀏覽器預設） ──
+const cellMenu = document.querySelector('#cell-menu');
+let menuCtx = null; // { bid, pos, name }
+
+function closeCellMenu() { cellMenu.hidden = true; menuCtx = null; }
+
+function openCellMenu(td, x, y) {
+  menuCtx = { bid: td.getAttribute('data-bid'), pos: td.getAttribute('data-pos'), name: td.getAttribute('data-n') };
+  const hasCell = routeTargets.has(`cell:${menuCtx.bid}|${menuCtx.pos}`);
+  const hasCat = routeTargets.has(`cat:${menuCtx.name}`);
+  cellMenu.innerHTML =
+    `<button data-act="cell">${hasCell ? '移除此位置目標' : '加入此位置目標'}</button>` +
+    `<button data-act="cat">${hasCat ? '移除此貓目標' : '加入此貓目標（所有出現）'}</button>` +
+    `<button data-act="find">搜尋此貓</button>` +
+    `<button data-act="copy">複製貓咪名稱</button>`;
+  cellMenu.hidden = false;
+  // 先顯示取得尺寸再定位（防超出視窗右/下緣）
+  cellMenu.style.left = `${Math.min(x, window.innerWidth - cellMenu.offsetWidth - 8)}px`;
+  cellMenu.style.top = `${Math.min(y, window.innerHeight - cellMenu.offsetHeight - 8)}px`;
+}
+
+cellMenu.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-act]');
+  if (!btn || !menuCtx) return;
+  const { bid, pos, name } = menuCtx;
+  const act = btn.getAttribute('data-act');
+  if (act === 'cell') toggleCellTarget(bid, pos, name);
+  else if (act === 'cat') toggleCatTarget(name);
+  else if (act === 'find') {
+    document.querySelector('#find-rarity').value = ''; // 清空稀有度篩選，避免濾掉此貓
+    document.querySelector('#find-name').value = name;
+    applyFind();
+    document.querySelector('#find-popup').classList.remove('collapsed'); // 展開結果抽屜
+    updateFindToggle();
+  }
+  else if (act === 'copy') navigator.clipboard?.writeText(name).catch(() => {});
+  closeCellMenu();
+});
+
+// ── 規劃路線與 Pareto 呈現 ────────────────────────────────────
+function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+function clearPath() {
+  for (const td of document.querySelectorAll('#grid td.on-path')) {
+    td.classList.remove('on-path', 'path-switch', 'path-ticket', 'path-target');
+    td.removeAttribute('data-step');
+  }
+}
+let selectedPlan = null; // 目前高亮的方案（renderTable 重繪後重套）
+function showPlanPath(plan) {
+  clearPath();
+  selectedPlan = plan || null;
+  if (!plan) return;
+  let missing = 0; // 不在目前 DOM 的步（B 軌未顯示或卡池被隱藏）
+  for (const s of plan.steps) {
+    const td = document.querySelector(`#grid td[data-bid="${cssq(s.bannerId)}"][data-pos="${cssq(s.pos)}"]`);
+    if (!td) { missing++; continue; }
+    td.classList.add('on-path');
+    if (s.switched) td.classList.add('path-switch');
+    if (s.ticket) td.classList.add('path-ticket');
+    if (s.collected.length) td.classList.add('path-target');
+    td.setAttribute('data-step', s.k);
+  }
+  const note = document.querySelector('#route-note');
+  if (note) {
+    note.textContent = missing
+      ? `⚠ 有 ${missing} 步不在目前畫面（B 軌未顯示或卡池被隱藏），開啟「顯示 B 軌」／卡池後即可看到完整路徑`
+      : '';
+  }
+}
+function renderPlanList(result) {
+  const popup = document.querySelector('#route-popup');
+  popup.hidden = false;
+  const body = document.querySelector('#route-body');
+  const REASON_LABEL = {
+    'beyond-count': '超出載入抽數',
+    'time-conflict': '卡池已結束',
+    'hidden': '卡池已隱藏',
+    'conflict': '互斥/軌道或時間不可達',
+  };
+  const tail = result.plans.length ? '。以下為可行子集方案。' : '，且無可行子集方案。';
+  const warn = result.feasible ? '' :
+    `<div class="err">無法收齊全部：${result.unreachable
+      .map((u) => `${esc(routeTargets.get(u.id)?.label || u.id)}（${REASON_LABEL[u.reason] || u.reason}）`)
+      .join('、')}${tail}</div>`;
+  if (!result.plans.length) { body.innerHTML = warn || '<p class="empty">無方案</p>'; return; }
+  const rows = result.plans.map((p, i) =>
+    `<tr data-i="${i}"><td>${i + 1}</td><td>${p.cost.pulls}</td><td>${p.cost.plat}</td>` +
+    `<td>${p.cost.legend}</td><td>${p.cost.switches}</td></tr>`).join('');
+  body.innerHTML = warn + '<div id="route-note" class="hint"></div>' +
+    `<table class="plan-grid"><thead><tr><th>#</th><th>抽數</th><th>白金券</th><th>傳說券</th><th>換軌</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table>`;
+  showPlanPath(result.plans[0]);
+}
+function runPlan() {
+  const btn = document.querySelector('#plan-route');
+  btn.disabled = true;
+  btn.textContent = '規劃中…';
+  // rAF 回呼在繪製前執行，其中排入的 timeout 會在繪製後才跑——
+  // 確保「規劃中…」真的畫出來後才開始同步計算（setTimeout(0) 常趕在下一次繪製前執行）
+  requestAnimationFrame(() => setTimeout(() => {
+    try {
+      // 傳入全部卡池（含隱藏者標 hidden）：隱藏卡池不入路線，但 reasonFor 能正確判讀
+      const banners = currentEntries.map((e) => {
+        const [start = '', end = ''] = (e.banner.date || '').split('~');
+        return { id: e.banner.id, short: e.banner.short, start, end, hidden: hidden.has(e.banner.id) };
+      });
+      const merged = mergeBanners(currentEntries);
+      const targets = [...routeTargets.values()];
+      const today = new Date().toLocaleDateString('sv'); // sv 地區格式即 YYYY-MM-DD（本地時區）
+      lastPlanResult = planRoutes({ merged, targets, banners, options: { lastName: null, today } });
+      renderPlanList(lastPlanResult);
+    } catch (err) {
+      document.querySelector('#route-popup').hidden = false;
+      document.querySelector('#route-body').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    } finally {
+      btn.textContent = '規劃路線';
+      btn.disabled = routeTargets.size === 0;
+    }
+  }, 0));
+}
+
+document.querySelector('#grid').addEventListener('click', (ev) => {
+  const td = ev.target.closest('td[data-bid]');
+  if (!td) { closeCellMenu(); return; }
+  openCellMenu(td, ev.clientX, ev.clientY);
+});
+document.addEventListener('click', (ev) => {
+  if (!cellMenu.hidden && !ev.target.closest('#cell-menu') && !ev.target.closest('#grid td[data-bid]')) closeCellMenu();
+});
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeCellMenu(); });
+document.querySelector('#table-wrap').addEventListener('scroll', closeCellMenu);
+document.querySelector('#route-targets').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-id]');
+  if (!btn) return;
+  routeTargets.delete(btn.getAttribute('data-id'));
+  renderTargetChips();
+  renderTable(currentEntries);
+});
+document.querySelector('#find-add-targets').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  addFindAsTargets();
+});
+document.querySelector('#plan-route').addEventListener('click', runPlan);
+document.querySelector('#route-close').addEventListener('click', () => {
+  document.querySelector('#route-popup').hidden = true;
+  showPlanPath(null); // 清高亮並取消重繪時的重套
+});
+document.querySelector('#route-body').addEventListener('click', (ev) => {
+  const tr = ev.target.closest('tr[data-i]');
+  if (tr && lastPlanResult) showPlanPath(lastPlanResult.plans[Number(tr.getAttribute('data-i'))]);
+});
 
 document.querySelector('#count').addEventListener('change', () => load());
 document.querySelector('#guar').addEventListener('change', () => load());
