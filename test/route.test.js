@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pullOutcome, UNCERTAIN, planRoutes } from '../extension/lib/route.js';
+import { pullOutcome, UNCERTAIN, planRoutes, simulateGuaranteed } from '../extension/lib/route.js';
 
 // 測試工具：合成 merged
 function C(pos, name, rarity = 'rare', extra = {}) {
@@ -91,6 +91,17 @@ test('planRoutes：B→A 換軌跳過位置號、抽數與位置脫鉤', () => {
   const skipped = planRoutes({ merged: m, banners,
     targets: [{ id: 't4', kind: 'cell', accept: new Set(['X|4A']) }] });
   assert.equal(skipped.feasible, false);
+});
+
+test('pullOutcome：非祭池 supa_fest 撞名也觸發重複（有效稀有度）', () => {
+  const m = M({ X: [C('60B', 'Gun', 'supa_fest', { dupe: { name: 'Wheel', rarity: 'rare', to: '62A' } })] });
+  const o = pullOutcome(m, '戰國武將', 60, 'B', 'Gun', 'X', false);
+  assert.equal(o.switched, true);
+  assert.equal(o.gotName, 'Wheel');
+  assert.equal(o.nextN, 62); assert.equal(o.nextTrack, 'A');
+  // 祭典池的 supa_fest 是激稀有 → 不觸發
+  const o2 = pullOutcome(m, '特級祭', 60, 'B', 'Gun', 'X', false);
+  assert.equal(o2.switched, false);
 });
 
 test('pullOutcome：白金必不換軌並記票', () => {
@@ -313,6 +324,93 @@ test('planRoutes：隱藏卡池不入路線，僅在隱藏卡池的目標回報 
     options: { today: '2026-07-02' },
     targets: [{ id: 't', kind: 'cell', accept: new Set(['A|1A']) }] });
   assert.equal(r2.unreachable[0].reason, 'time-conflict');
+});
+
+test('planRoutes：開 GU 收保證 Uber，gu 計軸、抽數含 GU 全長', () => {
+  const m = M({ X: [
+    C('1A', 'a', 'supa'), C('2A', 'b', 'supa', { guaranteed: { name: 'UBER', rarity: 'uber', to: '4B' } }),
+    C('3A', 'c', 'supa'), C('4B', 'd', 'supa'), C('5B', 'e', 'supa'),
+  ] });
+  const banners = [{ id: 'X', short: '特麗希', gu: 3 }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 'cat:UBER', kind: 'cat', name: 'UBER', accept: new Set() }] });
+  assert.equal(r.feasible, true);
+  const p = r.plans[0];
+  assert.equal(p.cost.gu, 1);
+  assert.equal(p.cost.pulls, 4); // 1 抽單抽 + GU 3 抽
+  const guStep = p.steps.find((s) => s.gu);
+  assert.equal(guStep.gotName, 'UBER');
+  assert.equal(guStep.pos, '2A'); // GU 起點
+});
+
+test('planRoutes：gu 為第四 Pareto 軸（單抽長路 vs GU 短路並列）', () => {
+  const xs = [C('1A', 'x1', 'supa', { guaranteed: { name: 'STAR', rarity: 'uber', to: '3B' } })];
+  for (let i = 2; i <= 9; i++) xs.push(C(`${i}A`, `x${i}`, 'supa'));
+  xs.push(C('10A', 'STAR', 'uber'));
+  const m = M({ X: xs });
+  const banners = [{ id: 'X', short: '特麗希', gu: 3 }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 'cat:STAR', kind: 'cat', name: 'STAR', accept: new Set(['X|10A']) }] });
+  assert.equal(r.feasible, true);
+  const costs = r.plans.map((p) => `${p.cost.pulls}/${p.cost.gu}`).sort();
+  assert.deepEqual(costs, ['10/0', '3/1']); // 10 單抽 vs GU(3抽) 並列
+});
+
+test('simulateGuaranteed：isStart（1A 撞 last）用 dupeGuaranteed，非乾淨 guaranteed', () => {
+  const m = M({ X: [
+    C('1A', 'Mer', 'rare', {
+      dupe: { name: 'Sci', rarity: 'rare', to: '2B' },
+      guaranteed: { name: 'CleanG', rarity: 'uber', to: '2B' },
+      dupeGuaranteed: { name: 'DupeG', rarity: 'uber', to: '3A' },
+    }),
+    C('2B', 'x2', 'supa'),
+  ] });
+  const g = simulateGuaranteed(m, '特麗希', 1, 'A', null, 'X', 2, true);
+  assert.equal(g.gotName, 'DupeG'); // 撞名起手 → 用 dupeGuaranteed，非乾淨 guaranteed
+  assert.equal(g.steps[0].gotName, 'Sci'); // 第一抽用重抽結果，不是天然 Mer
+  // 保證抽半步位移：重抽落 2B 後，B 軌半步 → 3A
+  assert.deepEqual(g.landing, { n: 3, track: 'A' });
+  assert.equal(g.uncertain, false);
+});
+
+test('simulateGuaranteed：isStart=false 時乾淨到達，用 guaranteed（非撞名）', () => {
+  const m = M({ X: [
+    C('1A', 'Mer', 'rare', {
+      dupe: { name: 'Sci', rarity: 'rare', to: '2B' },
+      guaranteed: { name: 'CleanG', rarity: 'uber', to: '2B' },
+      dupeGuaranteed: { name: 'DupeG', rarity: 'uber', to: '3A' },
+    }),
+  ] });
+  const g = simulateGuaranteed(m, '特麗希', 1, 'A', null, 'X', 2, false);
+  assert.equal(g.gotName, 'CleanG');
+  assert.equal(g.steps[0].gotName, 'Mer'); // 天然結果，未觸發撞名
+  // 保證抽半步位移：乾淨落 2A 後，A 軌半步 → 2B
+  assert.deepEqual(g.landing, { n: 2, track: 'B' });
+});
+
+test('planRoutes：1A 撞 last 開 GU 時正確用 dupeGuaranteed（isStart 貫穿 planRoutes 呼叫）', () => {
+  const m = M({ X: [
+    C('1A', 'Mer', 'rare', {
+      dupe: { name: 'Sci', rarity: 'rare', to: '2B' },
+      guaranteed: { name: 'CleanG', rarity: 'uber', to: '2B' },
+      dupeGuaranteed: { name: 'DupeG', rarity: 'uber', to: '3A' },
+    }),
+    C('2B', 'x2', 'supa'),
+  ] });
+  const banners = [{ id: 'X', short: '特麗希', gu: 2 }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 'cat:DupeG', kind: 'cat', name: 'DupeG', accept: new Set() }] });
+  assert.equal(r.feasible, true);
+  const guStep = r.plans[0].steps.find((s) => s.gu);
+  assert.equal(guStep.gotName, 'DupeG');
+});
+
+test('planRoutes：保證 Uber 不滿足 cell 目標', () => {
+  const m = M({ X: [C('1A', 'a', 'supa', { guaranteed: { name: 'UBER', rarity: 'uber', to: '3B' } }), C('2A', 'b', 'supa')] });
+  const banners = [{ id: 'X', short: '特麗希', gu: 3 }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 't', kind: 'cell', name: 'UBER', accept: new Set(['X|9A']) }] });
+  assert.equal(r.feasible, false);
 });
 
 test('planRoutes：同抽數同總券數 → 白金優先、傳說案剔除', () => {

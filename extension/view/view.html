@@ -13,13 +13,14 @@
   <label class="field">顯示抽數
     <input id="count" type="number" min="10" max="500" step="10">
   </label>
-  <label class="field">模擬保證
-    <select id="guar">
-      <option value="">無</option>
-      <option value="2">2</option>
-      <option value="7">7</option>
-      <option value="11">11（一般）</option>
-      <option value="15">15（Buster step-up）</option>
+  <label class="field">保證批次
+    <select id="guar" title="一次設定所有卡池的保證型式；個別調整用卡池列旁的下拉">
+      <option value="">批次設定…</option>
+      <option value="auto">重設為自動預設</option>
+      <option value="none">全部無</option>
+      <option value="7">全部 7</option>
+      <option value="11">全部 11</option>
+      <option value="15">全部 15</option>
     </select>
   </label>
   <label class="field"><input id="show-b" type="checkbox"> 顯示 B 軌</label>

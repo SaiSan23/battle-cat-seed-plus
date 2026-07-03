@@ -21,6 +21,7 @@ const RARITIES = ['legend', 'exclusive', 'uber_fest', 'uber', 'supa_fest', 'supa
 const PICK_RE = /pick\('(\d+[AB])'\)/; // 僅 Result 格：pick id 無字尾
 const GUAR_RE = /pick\('(\d+[AB])G'\)/; // 保證格：pick id 帶 G 字尾（需 force_guaranteed）
 const REROLL_RE = /pick\('(\d+[AB])R'\)/; // 重抽格：pick id 帶 R 字尾（重複稀有時的真正結果）
+const DUPE_GUAR_RE = /pick\('(\d+[AB])RG'\)/; // 撞名起手保證格（RG 字尾）：以重複狀態開確定連抽
 
 function rarityOf(el) {
   for (const r of RARITIES) if (el.classList.contains(r)) return r;
@@ -81,6 +82,19 @@ export function parseRollTable(doc) {
     // 換軌落點：cell 文字內的位置（如「-> 26B」「<- 28A」）；連鎖重複時帶 R 字尾（如「-> 134BR」）
     const arrow = td.textContent.match(/(\d+[AB]R?)\b/);
     target.dupe = { name, rarity, to: arrow ? arrow[1] : '' };
+  }
+
+  // 撞名起手保證格（RG 字尾）：以重複狀態抵達該位置時開確定連抽的保證與落點
+  for (const td of table.querySelectorAll('td.cat[onclick]')) {
+    const m = (td.getAttribute('onclick') || '').match(DUPE_GUAR_RE);
+    if (!m) continue;
+    const target = cells.get(m[1]);
+    if (!target) continue;
+    const rarity = rarityOf(td);
+    const name = catName(td);
+    if (!name) continue;
+    const arrow = td.textContent.match(/(?:->|<-)\s*(\d+[AB]R?)\b/);
+    target.dupeGuaranteed = { rarity, name, to: arrow ? arrow[1] : '' };
   }
   return { hasGuaranteed, cells };
 }

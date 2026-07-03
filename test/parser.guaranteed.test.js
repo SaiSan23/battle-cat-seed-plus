@@ -22,6 +22,20 @@ test('保證格解析換軌落點 to（1A 保證抽後落 11B）', () => {
   assert.equal(c.guaranteed.to, '11B');
 });
 
+test('RG 格解析為 dupeGuaranteed（撞名起手保證）', () => {
+  const dupePage = parseHTML(
+    readFileSync(new URL('./fixtures/dupe-forced11-banner.html', import.meta.url), 'utf8')
+  ).document;
+  const { cells } = parseRollTable(dupePage);
+  const c = cells.get('59A');
+  assert.equal(c.guaranteed.name, '伊達政宗');
+  assert.equal(c.guaranteed.to, '69B');
+  assert.equal(c.dupeGuaranteed.name, '真田幸村');
+  assert.equal(c.dupeGuaranteed.to, '70A');
+  // 無撞名點的位置沒有 dupeGuaranteed
+  assert.equal(cells.get('60A').dupeGuaranteed, undefined);
+});
+
 test('未強制保證的 fixture 無 guaranteed', () => {
   const plain = parseHTML(
     readFileSync(new URL('./fixtures/gu-banner.html', import.meta.url), 'utf8')

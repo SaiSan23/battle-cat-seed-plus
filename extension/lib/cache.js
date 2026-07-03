@@ -3,7 +3,8 @@
 
 // v2：快取鍵納入 last（last 影響 1A 是否為重複稀有），舊版 v1（無 last）一律失效
 // v3：guaranteed 新增換軌落點 to，舊快取無此欄位 → 升版使其失效，確保拿到落點
-const NS = 'bcsp:v3:';
+// v4：新增 dupeGuaranteed（撞名起手保證，RG 格），舊快取無此欄位 → 升版使其失效
+const NS = 'bcsp:v4:';
 
 export function cacheKey({ seed, event, count, force, last }) {
   return `${NS}${seed}|${event}|${count}|${force || ''}|${last || ''}`;

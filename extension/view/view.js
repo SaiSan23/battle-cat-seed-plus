@@ -2,10 +2,10 @@ import { buildEventUrl } from '../lib/godfat.js';
 import { parseRollTable } from '../lib/parser.js';
 import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
-import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
+import { shortBannerName, bannerDateRange, BUSTER_SHORTS } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache } from '../lib/cache.js';
 import { planRoutes } from '../lib/route.js';
-import { effectiveRarity } from '../lib/rarity.js';
+import { effectiveRarity, TICKET_SHORTS } from '../lib/rarity.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -29,6 +29,18 @@ const hidden = new Set(); // 被隱藏的 bannerId
 let currentEntries = []; // 目前已載入的 entries（供開關重繪，不需重抓）
 const routeTargets = new Map(); // id -> { id, kind, label, accept:Set<'bid|pos'> }
 let lastPlanResult = null; // 最近一次規劃結果
+
+// 逐卡池保證型式（無/7/11/15）：每卡池自己的值是唯一生效來源，localStorage 持久化。
+// 初始自動預設：一般卡池→11、Buster 系→15、票池→無；全域下拉僅為批次設定工具。
+const GU_KEY = 'bcsp:gu-values';
+let guValues = new Map();
+try { guValues = new Map(Object.entries(JSON.parse(localStorage.getItem(GU_KEY) || '{}'))); } catch { /* 壞值 → 空 */ }
+function autoGu(short) {
+  if (TICKET_SHORTS.has(short)) return '';
+  return BUSTER_SHORTS.has(short) ? '15' : '11';
+}
+function saveGu() { localStorage.setItem(GU_KEY, JSON.stringify(Object.fromEntries(guValues))); }
+function guFor(id) { return guValues.get(id) ?? ''; }
 
 function makeEntry(id, name, parsed, cached) {
   const date = bannerDateRange(name);
@@ -57,16 +69,14 @@ async function fetchBanner(id, useCount, force) {
   return makeEntry(id, name, parsed, false);
 }
 
-// 目前工具列的有效參數（count／模擬保證）；供「在 godfat 開啟」連結與重抓共用，
-// 確保連結畫面與目前顯示的（含模擬保證）一致
 function currentParams() {
   const useCount = Math.max(10, Math.min(500, Number(document.querySelector('#count').value) || 100));
-  const force = document.querySelector('#guar').value;
-  return { useCount, force, forceGuaranteed: force ? Number(force) : undefined };
+  return { useCount };
 }
 
 function renderError(id, message) {
-  const { useCount, forceGuaranteed } = currentParams();
+  const { useCount } = currentParams();
+  const forceGuaranteed = Number(guFor(id)) || undefined;
   const div = document.createElement('div');
   div.className = 'err';
   div.innerHTML =
@@ -88,7 +98,7 @@ function renderTable(entries) {
   const showB = document.querySelector('#show-b').checked;
   const sub = showB ? 2 : 1; // 每卡池子欄數
   const table = document.querySelector('#grid');
-  const { useCount, forceGuaranteed } = currentParams();
+  const { useCount } = currentParams();
 
   // 單格：某位置（如 12B）× 卡池 → <td>；無資料回空格
   function cellHtml(pos, e, bi) {
@@ -101,10 +111,16 @@ function renderTable(entries) {
     if (c.dupe) cls.push('dupe');
     if (pos.endsWith('B')) cls.push('btrack');
     const mainName = c.name;
-    const dupeTo = c.dupe?.to ? ` ↪ ${esc(c.dupe.to)}` : '';
+    // 換軌方向：落點在 A 軌＝回溯 ↩（B→A）、B 軌＝前進 ↪（A→B），與 godfat 的 <-/-> 對應
+    const dir = (to) => (/^\d+A/.test(to) ? '↩' : '↪');
+    const dupeTo = c.dupe?.to ? ` ${dir(c.dupe.to)} ${esc(c.dupe.to)}` : '';
     const dupeNote = c.dupe ? `<div class="dupe-note">重複→ ${esc(c.dupe.name)}${dupeTo}</div>` : '';
-    const guarTo = c.guaranteed?.to ? ` ↪ ${esc(c.guaranteed.to)}` : '';
-    const guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
+    const guarTo = c.guaranteed?.to ? ` ${dir(c.guaranteed.to)} ${esc(c.guaranteed.to)}` : '';
+    let guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
+    if (c.dupeGuaranteed) {
+      const dgTo = c.dupeGuaranteed.to ? ` ${dir(c.dupeGuaranteed.to)} ${esc(c.dupeGuaranteed.to)}` : '';
+      guar += `<div class="guar">保證(撞名): ${esc(c.dupeGuaranteed.name)}${dgTo}</div>`;
+    }
     const title = c.dupe
       ? ` title="前一隻同為 ${esc(c.name)} 時視為重複，改抽 ${esc(c.dupe.name)}${c.dupe.to ? `，下一抽 ${esc(c.dupe.to)}` : ''}"`
       : '';
@@ -129,7 +145,8 @@ function renderTable(entries) {
   // 第 2 列：簡稱（colspan=子欄數，title 掛完整名稱）＋在 godfat 開啟
   const nameRow = [];
   for (const e of visible) {
-    const link = buildEventUrl({ seed, event: e.banner.id, count: useCount, lang, last, forceGuaranteed });
+    const link = buildEventUrl({ seed, event: e.banner.id, count: useCount, lang, last,
+      forceGuaranteed: Number(guFor(e.banner.id)) || undefined });
     nameRow.push(
       `<th colspan="${sub}" title="${esc(e.banner.name)}">${esc(e.banner.short)}` +
         `<a class="gf" href="${link}" target="_blank" title="在 godfat 開啟此卡池">${GF_ICON}</a></th>`
@@ -279,6 +296,8 @@ function renderToggles(entries) {
   const box = document.querySelector('#banner-toggles');
   box.innerHTML = '';
   for (const e of entries) {
+    const wrap = document.createElement('span');
+    wrap.className = 'banner-chip';
     const label = document.createElement('label');
     label.title = e.banner.name;
     label.innerHTML = `<input type="checkbox" checked data-id="${esc(e.banner.id)}"> ${esc(e.banner.short)}`;
@@ -287,7 +306,20 @@ function renderToggles(entries) {
       else hidden.add(e.banner.id);
       renderTable(entries);
     });
-    box.appendChild(label);
+    // 逐卡池保證型式（放 label 外，避免點擊誤觸顯示開關）
+    const sel = document.createElement('select');
+    sel.className = 'gu-sel';
+    sel.title = '確定連抽（保證）型式';
+    sel.innerHTML = '<option value="">無保證</option><option value="7">7連</option><option value="11">11連</option><option value="15">15連</option>';
+    sel.value = guFor(e.banner.id);
+    sel.addEventListener('change', () => {
+      guValues.set(e.banner.id, sel.value);
+      saveGu();
+      load();
+    });
+    wrap.appendChild(label);
+    wrap.appendChild(sel);
+    box.appendChild(wrap);
   }
 }
 
@@ -304,7 +336,7 @@ function setChip(id, state, label, cached) {
 }
 
 async function load() {
-  const { useCount, force } = currentParams();
+  const { useCount } = currentParams();
   const progress = document.querySelector('#progress');
   document.querySelector('#errors').innerHTML = '';
   hidden.clear();
@@ -328,7 +360,7 @@ async function load() {
   };
   const results = await mapWithLimit(eventIds, CONCURRENCY, async (id) => {
     try {
-      const r = await fetchBanner(id, useCount, force);
+      const r = await fetchBanner(id, useCount, guFor(id));
       setChip(id, 'ok', r.banner.short, r.cached);
       tick();
       return r;
@@ -345,6 +377,17 @@ async function load() {
   });
   // 依開始日期升冪排序（穩定排序：相同日期維持原順序）
   entries.sort((a, b) => (a.banner.start < b.banner.start ? -1 : a.banner.start > b.banner.start ? 1 : 0));
+  // 首次見到的卡池：依名稱設定保證自動預設；有新值時重載一次帶入保證資料（其餘命中快取）
+  let needReload = false;
+  for (const e of entries) {
+    if (!guValues.has(e.banner.id)) {
+      const v = autoGu(e.banner.short);
+      guValues.set(e.banner.id, v);
+      if (v) needReload = true;
+    }
+  }
+  saveGu();
+  if (needReload) return load();
   progress.textContent = `完成（${entries.length}/${eventIds.length}）`;
   currentEntries = entries;
   renderToggles(entries);
@@ -442,7 +485,13 @@ cellMenu.addEventListener('click', (ev) => {
 function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 function clearPath() {
   for (const td of document.querySelectorAll('#grid td.on-path')) {
-    td.classList.remove('on-path', 'path-switch', 'path-ticket', 'path-target');
+    if (td.classList.contains('path-gu')) {
+      // GU 起點格的 title 被動態改寫過；還原格子原生 title（如天然重複稀有附註），沒有則移除
+      const orig = td.getAttribute('data-orig-title');
+      if (orig) td.setAttribute('title', orig); else td.removeAttribute('title');
+      td.removeAttribute('data-orig-title');
+    }
+    td.classList.remove('on-path', 'path-switch', 'path-ticket', 'path-target', 'path-gu');
     td.removeAttribute('data-step');
   }
 }
@@ -455,6 +504,14 @@ function showPlanPath(plan) {
   for (const s of plan.steps) {
     const td = document.querySelector(`#grid td[data-bid="${cssq(s.bannerId)}"][data-pos="${cssq(s.pos)}"]`);
     if (!td) { missing++; continue; }
+    if (s.gu) {
+      // 保證步：標 GU 起點格（步序號由該格的中間第一抽標）；備份原 title 供 clearPath 還原
+      td.classList.add('on-path', 'path-gu');
+      if (s.collected.length) td.classList.add('path-target');
+      td.setAttribute('data-orig-title', td.getAttribute('title') || '');
+      td.title = `開確定連抽：保證 ${s.gotName}`;
+      continue;
+    }
     td.classList.add('on-path');
     if (s.switched) td.classList.add('path-switch');
     if (s.ticket) td.classList.add('path-ticket');
@@ -485,10 +542,10 @@ function renderPlanList(result) {
       .join('、')}${tail}</div>`;
   if (!result.plans.length) { body.innerHTML = warn || '<p class="empty">無方案</p>'; return; }
   const rows = result.plans.map((p, i) =>
-    `<tr data-i="${i}"><td>${i + 1}</td><td>${p.cost.pulls}</td><td>${p.cost.plat}</td>` +
+    `<tr data-i="${i}"><td>${i + 1}</td><td>${p.cost.pulls}</td><td>${p.cost.gu}</td><td>${p.cost.plat}</td>` +
     `<td>${p.cost.legend}</td><td>${p.cost.switches}</td></tr>`).join('');
   body.innerHTML = warn + '<div id="route-note" class="hint"></div>' +
-    `<table class="plan-grid"><thead><tr><th>#</th><th>抽數</th><th>白金券</th><th>傳說券</th><th>換軌</th></tr></thead>` +
+    `<table class="plan-grid"><thead><tr><th>#</th><th>抽數</th><th>GU</th><th>白金券</th><th>傳說券</th><th>換軌</th></tr></thead>` +
     `<tbody>${rows}</tbody></table>`;
   showPlanPath(result.plans[0]);
 }
@@ -503,7 +560,8 @@ function runPlan() {
       // 傳入全部卡池（含隱藏者標 hidden）：隱藏卡池不入路線，但 reasonFor 能正確判讀
       const banners = currentEntries.map((e) => {
         const [start = '', end = ''] = (e.banner.date || '').split('~');
-        return { id: e.banner.id, short: e.banner.short, start, end, hidden: hidden.has(e.banner.id) };
+        return { id: e.banner.id, short: e.banner.short, start, end,
+          hidden: hidden.has(e.banner.id), gu: Number(guFor(e.banner.id)) || null };
       });
       const merged = mergeBanners(currentEntries);
       const targets = [...routeTargets.values()];
@@ -552,7 +610,19 @@ document.querySelector('#route-body').addEventListener('click', (ev) => {
 });
 
 document.querySelector('#count').addEventListener('change', () => load());
-document.querySelector('#guar').addEventListener('change', () => load());
+// 保證批次工具：一次改所有卡池的個別值後回到 placeholder（不存在持續生效的全域值）
+document.querySelector('#guar').addEventListener('change', (ev) => {
+  const v = ev.target.value;
+  if (!v) return;
+  if (v === 'auto') {
+    for (const e of currentEntries) guValues.set(e.banner.id, autoGu(e.banner.short));
+  } else {
+    for (const id of eventIds) guValues.set(id, v === 'none' ? '' : v);
+  }
+  saveGu();
+  ev.target.value = '';
+  load();
+});
 document.querySelector('#show-b').addEventListener('change', () => renderTable(currentEntries));
 document.querySelector('#find-rarity').addEventListener('change', applyFind);
 document.querySelector('#find-name').addEventListener('input', applyFind);

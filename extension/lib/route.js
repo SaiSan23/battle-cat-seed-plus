@@ -1,15 +1,25 @@
 // 從 1A 規劃收齊目標貓的抽卡路線（純函式，不自算種子）
+import { effectiveRarity } from './rarity.js';
+
 export const UNCERTAIN = ' UNCERTAIN';
 const SPECIAL = { '白金': 'plat', '黑金': 'legend' };
 
 const TO_RE = /^(\d+)([AB])R?$/; // godfat 落點（R 字尾＝抵達時仍處重複狀態）
 
+// 落點字串（如 "69B"、"134BR"）解析為 {n, track}；解析失敗回 null。
+// dupeLanding（重抽，耗整輪 2 顆種子）與 simulateGuaranteed（保證抽，僅耗 1 顆種子）
+// 的 fallback 公式不同、不可共用，但兩者的「箭頭字串格式」相同，共用這個解析函式。
+function parsePos(to) {
+  const m = to ? TO_RE.exec(to) : null;
+  return m ? { n: Number(m[1]), track: m[2] } : null;
+}
+
 // 重抽換軌落點：優先用 godfat 標的 dupe.to；未標時按規則 A→(n+1)B、B→(n+2)A。
 // A/B 軌是同一種子序列的交錯編號（nB 夾在 nA 與 (n+1)A 之間），重抽多耗一顆種子，
 // 從 A 軌看位置號 +1、從 B 軌看 +2（godfat 箭頭資料 14/14 零例外）。
 function dupeLanding(n, track, to) {
-  const m = to ? TO_RE.exec(to) : null;
-  if (m) return { nextN: Number(m[1]), nextTrack: m[2] };
+  const p = parsePos(to);
+  if (p) return { nextN: p.n, nextTrack: p.track };
   return track === 'A' ? { nextN: n + 1, nextTrack: 'B' } : { nextN: n + 2, nextTrack: 'A' };
 }
 
@@ -20,8 +30,9 @@ export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, i
   if (!cell) return null;
   const ticket = SPECIAL[bannerShort] || null;
   const isSpecial = !!ticket;
+  // 觸發條件用有效稀有度：非祭池的 supa_fest 降級為稀有、也會撞名觸發
   const dupe = !isSpecial && (
-    (cell.rarity === 'rare' && lastName != null && cell.name === lastName) ||
+    (effectiveRarity(cell.rarity, bannerShort) === 'rare' && lastName != null && cell.name === lastName) ||
     (isStart && !!cell.dupe)
   );
   if (dupe) {
@@ -37,6 +48,61 @@ export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, i
     gotRarity: cell.rarity, switched: false, uncertain: false, ticket };
 }
 
+// 確定連抽模擬（size=7/11/15）：size-1 次單抽 + 保證抽（僅耗一顆種子 → 半步位移）。
+// 落點以 godfat G/RG 格箭頭為準；撞名起手（抵達即與上一抽同名重複，或 isStart 時
+// godfat 已依 last 標好的 1A dupe）用 RG 資料——規則與 pullOutcome 的觸發條件一致。
+// 已以 dupe-forced11-banner fixture 的 591 個保證格全數驗證（見 test/route.gu.test.js）。
+export function simulateGuaranteed(merged, bannerShort, n, track, lastName, bannerId, size, isStart) {
+  if (SPECIAL[bannerShort]) return null; // 票池無確定連抽
+  const startCell = merged.byPos.get(`${n}${track}`)?.get(bannerId);
+  if (!startCell) return null;
+  const dupStart =
+    (effectiveRarity(startCell.rarity, bannerShort) === 'rare' && lastName != null && startCell.name === lastName) ||
+    (isStart && !!startCell.dupe);
+  const gcell = dupStart ? startCell.dupeGuaranteed : startCell.guaranteed;
+  if (!gcell?.name) return null;
+  const steps = [];
+  let curN = n, curT = track, last = lastName;
+  for (let i = 0; i < size - 1; i++) {
+    const o = pullOutcome(merged, bannerShort, curN, curT, last, bannerId, i === 0 && !!isStart);
+    if (!o) return null; // 中間格超出載入範圍
+    steps.push(o);
+    curN = o.nextN; curT = o.nextTrack; last = o.gotName;
+  }
+  // 保證抽只耗一顆種子（稀有度已鎖定 Uber，只抽單位）→ 半步位移：A 軌→同號 B、B 軌→+1 A。
+  // 與重抽（耗整輪 2 顆種子）的 dupeLanding 公式不同，不可共用；箭頭解析共用 parsePos。
+  const simLand = curT === 'A' ? { n: curN, track: 'B' } : { n: curN + 1, track: 'A' };
+  const arrow = parsePos(gcell.to);
+  const landing = arrow || simLand;
+  const uncertain = !!arrow && (arrow.n !== simLand.n || arrow.track !== simLand.track);
+  return { landing, gotName: gcell.name, gotRarity: gcell.rarity || 'uber', steps, uncertain };
+}
+
+// 收集判定：位置在 accept 內，且（目標有帶 name 時）實得貓名須相符——dupe 觸發與否
+// 會改變實得貓，僅憑位置會把「拿到別隻」誤計為收集。單抽與 GU 中間步共用同一規則。
+function collectAtCell(cellIdx, targets, T, bannerId, posStr, gotName, uncertain, mask) {
+  const atCell = uncertain ? 0 : (cellIdx.get(`${bannerId}|${posStr}`) || 0);
+  if (!atCell) return { mask, collected: [] };
+  let got = 0;
+  for (let i = 0; i < T; i++) {
+    if ((atCell & (1 << i)) && (targets[i].name == null || targets[i].name === gotName)) got |= 1 << i;
+  }
+  const collected = [];
+  for (let i = 0; i < T; i++) if ((got & (1 << i)) && !(mask & (1 << i))) collected.push(targets[i].id);
+  return { mask: mask | got, collected };
+}
+
+// 保證 Uber 無格子位置，只滿足名字相符的 cat 目標。
+function collectGuaranteedUber(targets, T, gotName, mask) {
+  let got = 0;
+  for (let i = 0; i < T; i++) {
+    if (targets[i].kind === 'cat' && targets[i].name === gotName) got |= 1 << i;
+  }
+  const collected = [];
+  for (let i = 0; i < T; i++) if ((got & (1 << i)) && !(mask & (1 << i))) collected.push(targets[i].id);
+  return { mask: mask | got, collected };
+}
+
 function buildCellIndex(targets) {
   const idx = new Map();
   targets.forEach((t, i) => { for (const key of t.accept) idx.set(key, (idx.get(key) || 0) | (1 << i)); });
@@ -45,11 +111,11 @@ function buildCellIndex(targets) {
 function stateKey(n, track, mask, lastName, lb) {
   return `${n}|${track}|${mask}|${lastName == null ? '' : lastName}|${lb}`;
 }
-// 標籤成本比較含 k（已抽次數）：B→A 換軌會跳過位置號，同一狀態可能以不同抽數抵達
-function eqCost(a, b) { return a.k === b.k && a.plat === b.plat && a.legend === b.legend && a.switches === b.switches; }
-function dominated(a, b) { // b 支配 a?（k,plat,legend,switches 皆 ≤ 且至少一 <）
-  return b.k <= a.k && b.plat <= a.plat && b.legend <= a.legend && b.switches <= a.switches &&
-    (b.k < a.k || b.plat < a.plat || b.legend < a.legend || b.switches < a.switches);
+// 標籤成本比較含 k（已抽次數）與 gu（確定連抽次數）
+function eqCost(a, b) { return a.k === b.k && a.plat === b.plat && a.legend === b.legend && a.gu === b.gu && a.switches === b.switches; }
+function dominated(a, b) { // b 支配 a?（k,plat,legend,gu,switches 皆 ≤ 且至少一 <）
+  return b.k <= a.k && b.plat <= a.plat && b.legend <= a.legend && b.gu <= a.gu && b.switches <= a.switches &&
+    (b.k < a.k || b.plat < a.plat || b.legend < a.legend || b.gu < a.gu || b.switches < a.switches);
 }
 function insertLabel(map, key, label) {
   const arr = map.get(key);
@@ -59,31 +125,31 @@ function insertLabel(map, key, label) {
   kept.push(label);
   map.set(key, kept);
 }
-function dom3(o, c) { // o 支配 c（pulls,plat,legend）
-  return o.pulls <= c.pulls && o.plat <= c.plat && o.legend <= c.legend &&
-    (o.pulls < c.pulls || o.plat < c.plat || o.legend < c.legend);
+function dom4(o, c) { // o 支配 c（pulls,plat,legend,gu）
+  return o.pulls <= c.pulls && o.plat <= c.plat && o.legend <= c.legend && o.gu <= c.gu &&
+    (o.pulls < c.pulls || o.plat < c.plat || o.legend < c.legend || o.gu < c.gu);
 }
 function toPlan(c) {
-  return { cost: { pulls: c.pulls, plat: c.plat, legend: c.legend, switches: c.switches },
+  return { cost: { pulls: c.pulls, plat: c.plat, legend: c.legend, gu: c.gu, switches: c.switches },
     steps: c.steps, collectedMask: c.mask };
 }
 function paretoPlans(cands) {
-  const nd = cands.filter((c) => !cands.some((o) => o !== c && dom3(o, c)));
+  const nd = cands.filter((c) => !cands.some((o) => o !== c && dom4(o, c)));
   const byKey = new Map();
   for (const c of nd) {
-    const k = `${c.pulls}|${c.plat}|${c.legend}`;
+    const k = `${c.pulls}|${c.plat}|${c.legend}|${c.gu}`;
     const cur = byKey.get(k);
     if (!cur || c.switches < cur.switches) byKey.set(k, c);
   }
-  // 白金優先：同抽數且同總券數者，只留傳說券最少的（白金券較便宜）
+  // 白金優先：同抽數同 GU 且同總券數者，只留傳說券最少的（白金券較便宜）
   const byGroup = new Map();
   for (const c of byKey.values()) {
-    const g = `${c.pulls}|${c.plat + c.legend}`;
+    const g = `${c.pulls}|${c.gu}|${c.plat + c.legend}`;
     const cur = byGroup.get(g);
     if (!cur || c.legend < cur.legend) byGroup.set(g, c);
   }
   return [...byGroup.values()]
-    .sort((a, b) => a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend)
+    .sort((a, b) => a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend || a.gu - b.gu)
     .map(toPlan);
 }
 function popcount(x) { let n = 0; while (x) { n += x & 1; x >>>= 1; } return n; }
@@ -120,10 +186,11 @@ function selectPlans(candidates, full, targets, maxPos, bannerById, today) {
     const p = paretoPlans(group);
     if (!plans.length) { plans = p; continue; }
     const a = p[0].cost, b = plans[0].cost;
-    if (a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend || a.switches - b.switches) {
+    if (a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend || a.gu - b.gu || a.switches - b.switches) {
       if (a.pulls < b.pulls || (a.pulls === b.pulls && (a.plat < b.plat ||
         (a.plat === b.plat && (a.legend < b.legend ||
-        (a.legend === b.legend && a.switches < b.switches)))))) plans = p;
+        (a.legend === b.legend && (a.gu < b.gu ||
+        (a.gu === b.gu && a.switches < b.switches)))))))) plans = p;
     }
   }
   const coveredMask = plans.length ? plans[0].collectedMask : 0;
@@ -152,7 +219,10 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
     if (!byPos.has(n)) byPos.set(n, new Map());
     insertLabel(byPos.get(n), key, label);
   };
-  const start = { k: 0, plat: 0, legend: 0, switches: 0, mask: 0, track: 'A',
+  // simulateGuaranteed 結果只依 (bannerId, n, track, lastName) 決定（與 mask/plat/legend/
+  // switches/gu 無關），不同 Pareto 標籤常共用同一組合，快取避免重複跑 size-1 次模擬。
+  const guCache = new Map();
+  const start = { k: 0, plat: 0, legend: 0, gu: 0, switches: 0, mask: 0, track: 'A',
     lastName: options.lastName ?? null, lb: today, steps: [] };
   insertAt(1, stateKey(1, 'A', 0, start.lastName, start.lb), start);
 
@@ -168,29 +238,53 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
           if (!o) continue;
           const lb = b.start && b.start > L.lb ? b.start : L.lb; // 抽未來卡池 → 時間推進
           const k = L.k + 1; // 第幾抽（B→A 換軌會跳過位置號，抽數與位置脫鉤）
-          // 收集判定：位置在 accept 內，且（目標有帶 name 時）實得貓名須相符——
-          // dupe 觸發與否會改變實得貓，僅憑位置會把「拿到別隻」誤計為收集
-          const atCell = o.uncertain ? 0 : (cellIdx.get(`${b.id}|${o.posStr}`) || 0);
-          let got = 0;
-          if (atCell) {
-            for (let i = 0; i < T; i++) {
-              if ((atCell & (1 << i)) && (targets[i].name == null || targets[i].name === o.gotName)) got |= 1 << i;
-            }
-          }
-          const newMask = L.mask | got;
+          const { mask: newMask, collected } = collectAtCell(cellIdx, targets, T, b.id, o.posStr, o.gotName, o.uncertain, L.mask);
           const plat = L.plat + (o.ticket === 'plat' ? 1 : 0);
           const legend = L.legend + (o.ticket === 'legend' ? 1 : 0);
           const switches = L.switches + (o.switched ? 1 : 0);
-          const collected = [];
-          for (let i = 0; i < T; i++) if ((got & (1 << i)) && !(L.mask & (1 << i))) collected.push(targets[i].id);
           const step = { k, pos: o.posStr, track: L.track, bannerId: b.id, gotName: o.gotName,
             gotRarity: o.gotRarity, switched: o.switched, uncertain: o.uncertain, ticket: o.ticket, collected };
           const steps = L.steps.concat([step]);
-          if (newMask !== L.mask) candidates.push({ pulls: k, plat, legend, switches, mask: newMask, steps });
-          if (newMask === full) continue; // 收齊即停止延伸
-          if (o.nextN > maxPos) continue; // 落點超出載入範圍
-          insertAt(o.nextN, stateKey(o.nextN, o.nextTrack, newMask, o.gotName, lb),
-            { k, plat, legend, switches, mask: newMask, track: o.nextTrack, lastName: o.gotName, lb, steps });
+          if (newMask !== L.mask) candidates.push({ pulls: k, plat, legend, gu: L.gu, switches, mask: newMask, steps });
+          if (newMask !== full && o.nextN <= maxPos) {
+            insertAt(o.nextN, stateKey(o.nextN, o.nextTrack, newMask, o.gotName, lb),
+              { k, plat, legend, gu: L.gu, switches, mask: newMask, track: o.nextTrack, lastName: o.gotName, lb, steps });
+          }
+
+          // 開確定連抽（該卡池有保證值時；票池/無資料由 simulateGuaranteed 回 null 排除）
+          if (b.gu) {
+            const gKey = `${b.id}|${n}|${L.track}|${L.lastName == null ? '' : L.lastName}`;
+            let g = guCache.get(gKey);
+            if (g === undefined) {
+              g = simulateGuaranteed(merged, b.short, n, L.track, L.lastName, b.id, b.gu, n === 1);
+              guCache.set(gKey, g);
+            }
+            if (g) {
+              let mask = L.mask, kk = L.k, sw = L.switches;
+              const guSteps = [];
+              for (const s of g.steps) {
+                kk++;
+                const r = collectAtCell(cellIdx, targets, T, b.id, s.posStr, s.gotName, s.uncertain, mask);
+                mask = r.mask;
+                if (s.switched) sw++;
+                guSteps.push({ k: kk, pos: s.posStr, track: s.posStr.endsWith('A') ? 'A' : 'B', bannerId: b.id,
+                  gotName: s.gotName, gotRarity: s.gotRarity, switched: s.switched, uncertain: s.uncertain,
+                  ticket: null, collected: r.collected, gu: false });
+              }
+              kk++;
+              const r2 = collectGuaranteedUber(targets, T, g.gotName, mask);
+              mask = r2.mask;
+              guSteps.push({ k: kk, pos: `${n}${L.track}`, track: L.track, bannerId: b.id,
+                gotName: g.gotName, gotRarity: g.gotRarity, switched: true, uncertain: g.uncertain,
+                ticket: null, collected: r2.collected, gu: true });
+              const steps2 = L.steps.concat(guSteps);
+              if (mask !== L.mask) candidates.push({ pulls: kk, plat: L.plat, legend: L.legend, gu: L.gu + 1, switches: sw, mask, steps: steps2 });
+              if (mask !== full && g.landing.n <= maxPos) {
+                insertAt(g.landing.n, stateKey(g.landing.n, g.landing.track, mask, g.gotName, lb),
+                  { k: kk, plat: L.plat, legend: L.legend, gu: L.gu + 1, switches: sw, mask, track: g.landing.track, lastName: g.gotName, lb, steps: steps2 });
+              }
+            }
+          }
         }
       }
     }
