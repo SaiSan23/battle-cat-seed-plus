@@ -230,11 +230,12 @@ tbody td.btrack, thead th.ab.btrack { border-right: 2px solid var(--border); }
 tbody td.target { outline: 3px solid #f59f00; outline-offset: -3px; }
 
 /* 路線方案抽屜 */
-#route-popup { position: fixed; right: 12px; bottom: 12px; z-index: 25; width: 320px; max-height: 60vh;
+#route-popup { position: fixed; right: 12px; top: 12px; z-index: 25; width: 320px; max-height: 60vh;
   display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r); box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
 #route-popup-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;
-  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; }
+  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; cursor: grab; touch-action: none; }
+#route-popup-head.dragging { cursor: grabbing; user-select: none; }
 #route-close { border: 1px solid var(--border); background: #fff; border-radius: var(--rc); width: 22px; height: 22px; cursor: pointer; }
 #route-body { overflow: auto; padding: 8px 12px; }
 #route-body .empty { color: var(--muted); font-size: 12px; margin: 8px 0; }

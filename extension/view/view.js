@@ -589,6 +589,48 @@ document.querySelector('#find-popup-head').addEventListener('click', () => {
   handle.addEventListener('pointerup', stop);
   handle.addEventListener('pointercancel', stop);
 })();
+
+// 路線面板：標題列拖曳移動＋位置記憶（超出視窗自動夾回）
+(() => {
+  const POS_KEY = 'bcsp:route-popup-pos';
+  const popup = document.querySelector('#route-popup');
+  const head = document.querySelector('#route-popup-head');
+  const apply = (left, top) => {
+    const w = popup.offsetWidth || 320;
+    const headH = head.offsetHeight || 36;
+    popup.style.left = `${Math.max(8, Math.min(left, window.innerWidth - w - 8))}px`;
+    popup.style.top = `${Math.max(8, Math.min(top, window.innerHeight - headH - 8))}px`;
+    popup.style.right = 'auto';
+    popup.style.bottom = 'auto';
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(POS_KEY));
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) apply(saved.left, saved.top);
+  } catch { /* 壞值 → 用預設位置 */ }
+
+  let drag = null; // { dx, dy }：指標與面板左上角的偏移
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#route-close')) return; // 關閉鈕不啟動拖曳
+    const r = popup.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    head.setPointerCapture(e.pointerId);
+    head.classList.add('dragging');
+    e.preventDefault();
+  });
+  head.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    apply(e.clientX - drag.dx, e.clientY - drag.dy);
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null;
+    head.classList.remove('dragging');
+    const r = popup.getBoundingClientRect();
+    localStorage.setItem(POS_KEY, JSON.stringify({ left: r.left, top: r.top }));
+  };
+  head.addEventListener('pointerup', endDrag);
+  head.addEventListener('pointercancel', endDrag);
+})();
 document.querySelector('#clear-cache').addEventListener('click', (ev) => {
   clearCache();
   const btn = ev.currentTarget;
