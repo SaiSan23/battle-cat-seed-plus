@@ -5,6 +5,7 @@ import { mapWithLimit } from '../lib/concurrency.js';
 import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache } from '../lib/cache.js';
 import { planRoutes } from '../lib/route.js';
+import { effectiveRarity } from '../lib/rarity.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -166,20 +167,16 @@ function renderTable(entries) {
 // Find/高亮：依稀有度與貓名在表中標記符合的格子
 const RARITY_GROUP = {
   rare: ['rare'],
-  supa: ['supa', 'supa_fest'],
-  uber: ['uber', 'uber_fest', 'exclusive', 'legend'], // 超激稀有以上：含 exclusive 與 傳說(legend)，其餘(稀有/激稀有)留空
+  supa: ['supa'],
+  uber: ['uber', 'exclusive', 'legend'], // 超激稀有以上：含 exclusive 與 傳說(legend)；有效稀有度已把 (祭) 換算成基本值
   exclusive: ['exclusive'],
   legend: ['legend'],
 };
 
-// 票抽卡池：只能用特殊票抽，貓咪皆為超激稀有以上（godfat 為對齊種子位置仍標天然稀有度）
-const ALWAYS_SHORTS = new Set(['白金', '黑金']);
-// 白金/黑金 的「稀有/激稀有」格一律視為超激（傳說/Exclusive 等高階維持原樣），供搜尋與顯示用
+// 有效稀有度（過濾用）：(祭) 格依卡池是否祭典換算、票池必超激——規則見 lib/rarity.js
 function effRarity(td) {
-  const r = td.getAttribute('data-r');
   const short = lastVisibleShorts[Number(td.getAttribute('data-bi'))];
-  if (ALWAYS_SHORTS.has(short) && (r === 'rare' || r === 'supa' || r === 'supa_fest')) return 'uber';
-  return r;
+  return effectiveRarity(td.getAttribute('data-r'), short);
 }
 
 let findMatches = []; // [{td, pos, bi, name, rarity}]，供矩陣與跳轉用

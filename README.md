@@ -47,6 +47,7 @@ npm test      # node:test + linkedom，對 godfat HTML fixture 做單元測試
 - **資料來源**：擴充以 `host_permissions` 直接抓取 godfat 各卡池頁面（避開 CORS），解析其 HTML。不自行重算種子（忠實沿用 godfat 計算）。
 - **保證欄是「模擬」功能**：godfat 的「Guaranteed」表頭**永遠存在，不代表該卡池真的有必中**；godfat 也**從不自動填入**保證欄（原生整欄空白）。保證純粹是使用者透過 `force_guaranteed=2/7/11/15` 開啟的模擬（保證格 pick id 帶 `G` 字尾）。godfat 的 HTML 無法判斷哪個卡池真有必中（該資訊在遊戲資料）。因此本工具把它做成預設關閉的「模擬保證」下拉，比照 godfat，由使用者自行套用，不對任何卡池捏造保證。
 - **稀有度 class**：`rare` / `supa` / `supa_fest` / `uber` / `uber_fest` / `exclusive`（`legend` 亦可能出現）。
+- **稀有度過濾用「有效稀有度」**：`(祭)` 格只在祭典卡池（超級祭/特級祭/超極祭/超國王祭/女王祭）才算該稀有度，非祭典降一級（祭激→稀有、祭超激→激稀有）；白金/黑金票池一律視為超激（exclusive/傳說除外）。貓名搜尋與格子底色不受影響。
 
 ## 已知維護風險
 
