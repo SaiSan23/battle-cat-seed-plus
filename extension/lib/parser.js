@@ -95,6 +95,7 @@ export function parseRollTable(doc) {
     if (!name) continue;
     const arrow = td.textContent.match(/(?:->|<-)\s*(\d+[AB]R?)\b/);
     target.dupeGuaranteed = { rarity, name, to: arrow ? arrow[1] : '' };
+    hasGuaranteed = true;
   }
   return { hasGuaranteed, cells };
 }

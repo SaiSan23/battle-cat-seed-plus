@@ -111,33 +111,41 @@ function buildCellIndex(targets) {
 function stateKey(n, track, mask, lastName, lb) {
   return `${n}|${track}|${mask}|${lastName == null ? '' : lastName}|${lb}`;
 }
-// 標籤成本比較含 k（已抽次數）與 gu（確定連抽次數）
-function eqCost(a, b) { return a.k === b.k && a.plat === b.plat && a.legend === b.legend && a.gu === b.gu && a.switches === b.switches; }
-function dominated(a, b) { // b 支配 a?（k,plat,legend,gu,switches 皆 ≤ 且至少一 <）
-  return b.k <= a.k && b.plat <= a.plat && b.legend <= a.legend && b.gu <= a.gu && b.switches <= a.switches &&
-    (b.k < a.k || b.plat < a.plat || b.legend < a.legend || b.gu < a.gu || b.switches < a.switches);
+// 成本軸單一來源：新增資源軸（例如未來細分券種）時只需改這裡與產生成本欄位處。
+// 標籤域含 k（已抽次數）；方案域以 pulls 計 Pareto、switches 僅作 tie-break。
+const LABEL_AXES = ['k', 'plat', 'legend', 'gu', 'switches'];
+const PLAN_AXES = ['pulls', 'plat', 'legend', 'gu'];
+const PLAN_TIE_AXES = [...PLAN_AXES, 'switches'];
+function eqCost(a, b, axes) { return axes.every((f) => a[f] === b[f]); }
+function dominates(b, a, axes) { // b 支配 a：各軸皆 ≤ 且至少一軸 <
+  let strict = false;
+  for (const f of axes) {
+    if (b[f] > a[f]) return false;
+    if (b[f] < a[f]) strict = true;
+  }
+  return strict;
+}
+function compareLex(a, b, axes) { // 依軸序字典比較（皆越小越好）
+  for (const f of axes) if (a[f] !== b[f]) return a[f] - b[f];
+  return 0;
 }
 function insertLabel(map, key, label) {
   const arr = map.get(key);
   if (!arr) { map.set(key, [label]); return; }
-  for (const e of arr) if (eqCost(label, e) || dominated(label, e)) return;
-  const kept = arr.filter((e) => !dominated(e, label));
+  for (const e of arr) if (eqCost(label, e, LABEL_AXES) || dominates(e, label, LABEL_AXES)) return;
+  const kept = arr.filter((e) => !dominates(label, e, LABEL_AXES));
   kept.push(label);
   map.set(key, kept);
 }
-function dom4(o, c) { // o 支配 c（pulls,plat,legend,gu）
-  return o.pulls <= c.pulls && o.plat <= c.plat && o.legend <= c.legend && o.gu <= c.gu &&
-    (o.pulls < c.pulls || o.plat < c.plat || o.legend < c.legend || o.gu < c.gu);
-}
 function toPlan(c) {
-  return { cost: { pulls: c.pulls, plat: c.plat, legend: c.legend, gu: c.gu, switches: c.switches },
+  return { cost: Object.fromEntries(PLAN_TIE_AXES.map((f) => [f, c[f]])),
     steps: c.steps, collectedMask: c.mask };
 }
 function paretoPlans(cands) {
-  const nd = cands.filter((c) => !cands.some((o) => o !== c && dom4(o, c)));
+  const nd = cands.filter((c) => !cands.some((o) => o !== c && dominates(o, c, PLAN_AXES)));
   const byKey = new Map();
   for (const c of nd) {
-    const k = `${c.pulls}|${c.plat}|${c.legend}|${c.gu}`;
+    const k = PLAN_AXES.map((f) => c[f]).join('|');
     const cur = byKey.get(k);
     if (!cur || c.switches < cur.switches) byKey.set(k, c);
   }
@@ -149,7 +157,7 @@ function paretoPlans(cands) {
     if (!cur || c.legend < cur.legend) byGroup.set(g, c);
   }
   return [...byGroup.values()]
-    .sort((a, b) => a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend || a.gu - b.gu)
+    .sort((a, b) => compareLex(a, b, PLAN_AXES))
     .map(toPlan);
 }
 function popcount(x) { let n = 0; while (x) { n += x & 1; x >>>= 1; } return n; }
@@ -185,13 +193,7 @@ function selectPlans(candidates, full, targets, maxPos, bannerById, today) {
   for (const [, group] of byMask) {
     const p = paretoPlans(group);
     if (!plans.length) { plans = p; continue; }
-    const a = p[0].cost, b = plans[0].cost;
-    if (a.pulls - b.pulls || a.plat - b.plat || a.legend - b.legend || a.gu - b.gu || a.switches - b.switches) {
-      if (a.pulls < b.pulls || (a.pulls === b.pulls && (a.plat < b.plat ||
-        (a.plat === b.plat && (a.legend < b.legend ||
-        (a.legend === b.legend && (a.gu < b.gu ||
-        (a.gu === b.gu && a.switches < b.switches)))))))) plans = p;
-    }
+    if (compareLex(p[0].cost, plans[0].cost, PLAN_TIE_AXES) < 0) plans = p;
   }
   const coveredMask = plans.length ? plans[0].collectedMask : 0;
   const unreachable = targets

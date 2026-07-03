@@ -32,6 +32,7 @@ let lastPlanResult = null; // 最近一次規劃結果
 
 // 逐卡池保證型式（無/7/11/15）：每卡池自己的值是唯一生效來源，localStorage 持久化。
 // 初始自動預設：一般卡池→11、Buster 系→15、票池→無；全域下拉僅為批次設定工具。
+const GU_SIZES = ['7', '11', '15']; // 支援的確定連抽尺寸；批次與逐卡池下拉皆由此產生
 const GU_KEY = 'bcsp:gu-values';
 let guValues = new Map();
 try { guValues = new Map(Object.entries(JSON.parse(localStorage.getItem(GU_KEY) || '{}'))); } catch { /* 壞值 → 空 */ }
@@ -310,7 +311,9 @@ function renderToggles(entries) {
     const sel = document.createElement('select');
     sel.className = 'gu-sel';
     sel.title = '確定連抽（保證）型式';
-    sel.innerHTML = '<option value="">無保證</option><option value="7">7連</option><option value="11">11連</option><option value="15">15連</option>';
+    sel.innerHTML =
+      '<option value="">無保證</option>' +
+      GU_SIZES.map((s) => `<option value="${s}">${s}連</option>`).join('');
     sel.value = guFor(e.banner.id);
     sel.addEventListener('change', () => {
       guValues.set(e.banner.id, sel.value);
@@ -611,6 +614,12 @@ document.querySelector('#route-body').addEventListener('click', (ev) => {
 
 document.querySelector('#count').addEventListener('change', () => load());
 // 保證批次工具：一次改所有卡池的個別值後回到 placeholder（不存在持續生效的全域值）
+for (const s of GU_SIZES) {
+  const opt = document.createElement('option');
+  opt.value = s;
+  opt.textContent = `全部 ${s}`;
+  document.querySelector('#guar').appendChild(opt);
+}
 document.querySelector('#guar').addEventListener('change', (ev) => {
   const v = ev.target.value;
   if (!v) return;

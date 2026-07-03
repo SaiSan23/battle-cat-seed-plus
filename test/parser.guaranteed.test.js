@@ -36,6 +36,17 @@ test('RG 格解析為 dupeGuaranteed（撞名起手保證）', () => {
   assert.equal(cells.get('60A').dupeGuaranteed, undefined);
 });
 
+test('僅有 RG 格（無 G 格）時 hasGuaranteed 也為 true', () => {
+  const minimal = parseHTML(
+    '<table><tr><th>No.</th><th>Result</th><th>Guaranteed</th><th>Alt. No.</th></tr>' +
+      '<tr><td><td class="cat pick rare" onclick="pick(\'1A\')"><span><a>貓</a></span></td>' +
+      '<td class="cat pick uber" onclick="pick(\'1ARG\')"><span><a>保證貓</a></span> -&gt; 12B</td></tr></table>'
+  ).document;
+  const { hasGuaranteed, cells } = parseRollTable(minimal);
+  assert.equal(cells.get('1A').dupeGuaranteed.name, '保證貓');
+  assert.equal(hasGuaranteed, true);
+});
+
 test('未強制保證的 fixture 無 guaranteed', () => {
   const plain = parseHTML(
     readFileSync(new URL('./fixtures/gu-banner.html', import.meta.url), 'utf8')
