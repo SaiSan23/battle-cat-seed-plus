@@ -2,7 +2,16 @@
 export const UNCERTAIN = ' UNCERTAIN';
 const SPECIAL = { '白金': 'plat', '黑金': 'legend' };
 
-function opposite(t) { return t === 'A' ? 'B' : 'A'; }
+const TO_RE = /^(\d+)([AB])R?$/; // godfat 落點（R 字尾＝抵達時仍處重複狀態）
+
+// 重抽換軌落點：優先用 godfat 標的 dupe.to；未標時按規則 A→(n+1)B、B→(n+2)A。
+// A/B 軌是同一種子序列的交錯編號（nB 夾在 nA 與 (n+1)A 之間），重抽多耗一顆種子，
+// 從 A 軌看位置號 +1、從 B 軌看 +2（godfat 箭頭資料 14/14 零例外）。
+function dupeLanding(n, track, to) {
+  const m = to ? TO_RE.exec(to) : null;
+  if (m) return { nextN: Number(m[1]), nextTrack: m[2] };
+  return track === 'A' ? { nextN: n + 1, nextTrack: 'B' } : { nextN: n + 2, nextTrack: 'A' };
+}
 
 // 一次單抽的結果。isStart=true 時（n===1）以 godfat 已標的 1A dupe 判定撞 last 的換軌。
 export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, isStart) {
@@ -16,11 +25,12 @@ export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, i
     (isStart && !!cell.dupe)
   );
   if (dupe) {
+    const land = dupeLanding(n, track, cell.dupe?.to);
     if (cell.dupe) {
-      return { posStr, nextN: n + 1, nextTrack: opposite(track), gotName: cell.dupe.name,
+      return { posStr, ...land, gotName: cell.dupe.name,
         gotRarity: cell.dupe.rarity || 'rare', switched: true, uncertain: false, ticket };
     }
-    return { posStr, nextN: n + 1, nextTrack: opposite(track), gotName: UNCERTAIN,
+    return { posStr, ...land, gotName: UNCERTAIN,
       gotRarity: null, switched: true, uncertain: true, ticket };
   }
   return { posStr, nextN: n + 1, nextTrack: track, gotName: cell.name,
@@ -35,10 +45,11 @@ function buildCellIndex(targets) {
 function stateKey(n, track, mask, lastName, lb) {
   return `${n}|${track}|${mask}|${lastName == null ? '' : lastName}|${lb}`;
 }
-function eqCost(a, b) { return a.plat === b.plat && a.legend === b.legend && a.switches === b.switches; }
-function dominated(a, b) { // b 支配 a?（plat,legend,switches 皆 ≤ 且至少一 <）
-  return b.plat <= a.plat && b.legend <= a.legend && b.switches <= a.switches &&
-    (b.plat < a.plat || b.legend < a.legend || b.switches < a.switches);
+// 標籤成本比較含 k（已抽次數）：B→A 換軌會跳過位置號，同一狀態可能以不同抽數抵達
+function eqCost(a, b) { return a.k === b.k && a.plat === b.plat && a.legend === b.legend && a.switches === b.switches; }
+function dominated(a, b) { // b 支配 a?（k,plat,legend,switches 皆 ≤ 且至少一 <）
+  return b.k <= a.k && b.plat <= a.plat && b.legend <= a.legend && b.switches <= a.switches &&
+    (b.k < a.k || b.plat < a.plat || b.legend < a.legend || b.switches < a.switches);
 }
 function insertLabel(map, key, label) {
   const arr = map.get(key);
@@ -135,13 +146,19 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
   const today = options.today ?? '';
 
   const candidates = []; // { pulls, plat, legend, switches, mask, steps }
-  let frontier = new Map();
-  const start = { plat: 0, legend: 0, switches: 0, mask: 0, track: 'A',
+  // frontier 按位置索引：B→A 換軌落點為 n+2，標籤需在正確的位置輪次被處理
+  const byPos = new Map(); // n -> Map(stateKey -> labels)
+  const insertAt = (n, key, label) => {
+    if (!byPos.has(n)) byPos.set(n, new Map());
+    insertLabel(byPos.get(n), key, label);
+  };
+  const start = { k: 0, plat: 0, legend: 0, switches: 0, mask: 0, track: 'A',
     lastName: options.lastName ?? null, lb: today, steps: [] };
-  frontier.set(stateKey(1, 'A', 0, start.lastName, start.lb), [start]);
+  insertAt(1, stateKey(1, 'A', 0, start.lastName, start.lb), start);
 
-  for (let n = 1; n <= maxPos && frontier.size; n++) {
-    const next = new Map();
+  for (let n = 1; n <= maxPos; n++) {
+    const frontier = byPos.get(n);
+    if (!frontier) continue;
     for (const [, arr] of frontier) {
       for (const L of arr) {
         for (const b of banners) {
@@ -150,6 +167,7 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
           const o = pullOutcome(merged, b.short, n, L.track, L.lastName, b.id, n === 1);
           if (!o) continue;
           const lb = b.start && b.start > L.lb ? b.start : L.lb; // 抽未來卡池 → 時間推進
+          const k = L.k + 1; // 第幾抽（B→A 換軌會跳過位置號，抽數與位置脫鉤）
           // 收集判定：位置在 accept 內，且（目標有帶 name 時）實得貓名須相符——
           // dupe 觸發與否會改變實得貓，僅憑位置會把「拿到別隻」誤計為收集
           const atCell = o.uncertain ? 0 : (cellIdx.get(`${b.id}|${o.posStr}`) || 0);
@@ -165,17 +183,18 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
           const switches = L.switches + (o.switched ? 1 : 0);
           const collected = [];
           for (let i = 0; i < T; i++) if ((got & (1 << i)) && !(L.mask & (1 << i))) collected.push(targets[i].id);
-          const step = { k: n, pos: o.posStr, track: L.track, bannerId: b.id, gotName: o.gotName,
+          const step = { k, pos: o.posStr, track: L.track, bannerId: b.id, gotName: o.gotName,
             gotRarity: o.gotRarity, switched: o.switched, uncertain: o.uncertain, ticket: o.ticket, collected };
           const steps = L.steps.concat([step]);
-          if (newMask !== L.mask) candidates.push({ pulls: n, plat, legend, switches, mask: newMask, steps });
+          if (newMask !== L.mask) candidates.push({ pulls: k, plat, legend, switches, mask: newMask, steps });
           if (newMask === full) continue; // 收齊即停止延伸
-          insertLabel(next, stateKey(o.nextN, o.nextTrack, newMask, o.gotName, lb),
-            { plat, legend, switches, mask: newMask, track: o.nextTrack, lastName: o.gotName, lb, steps });
+          if (o.nextN > maxPos) continue; // 落點超出載入範圍
+          insertAt(o.nextN, stateKey(o.nextN, o.nextTrack, newMask, o.gotName, lb),
+            { k, plat, legend, switches, mask: newMask, track: o.nextTrack, lastName: o.gotName, lb, steps });
         }
       }
     }
-    frontier = next;
+    byPos.delete(n); // 已處理，釋放
   }
   return selectPlans(candidates, full, targets, maxPos, bannerById, today);
 }

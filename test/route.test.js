@@ -47,6 +47,52 @@ test('pullOutcome：重複稀有但 godfat 未標 → uncertain', () => {
   assert.equal(o.gotName, UNCERTAIN);
 });
 
+test('pullOutcome：B 軌重抽落點用 godfat dupe.to（B→A 為 n+2）', () => {
+  const m = M({ X: [C('43B', 'Gun', 'rare', { dupe: { name: 'Pirate', rarity: 'rare', to: '45A' } })] });
+  const o = pullOutcome(m, '特麗希', 43, 'B', 'Gun', 'X', false);
+  assert.equal(o.switched, true);
+  assert.equal(o.nextN, 45); assert.equal(o.nextTrack, 'A');
+});
+
+test('pullOutcome：落點帶 R 字尾（連鎖重複）正確解析', () => {
+  const m = M({ X: [C('133A', 'Gun', 'rare', { dupe: { name: 'Sniper', rarity: 'rare', to: '134BR' } })] });
+  const o = pullOutcome(m, '特麗希', 133, 'A', 'Gun', 'X', false);
+  assert.equal(o.nextN, 134); assert.equal(o.nextTrack, 'B');
+});
+
+test('pullOutcome：uncertain 重抽落點按規則 A→(n+1)B、B→(n+2)A', () => {
+  const mA = M({ X: [C('7A', 'Gun', 'rare')] });
+  const a = pullOutcome(mA, '特麗希', 7, 'A', 'Gun', 'X', false);
+  assert.equal(a.uncertain, true);
+  assert.equal(a.nextN, 8); assert.equal(a.nextTrack, 'B');
+  const mB = M({ X: [C('7B', 'Gun', 'rare')] });
+  const b = pullOutcome(mB, '特麗希', 7, 'B', 'Gun', 'X', false);
+  assert.equal(b.uncertain, true);
+  assert.equal(b.nextN, 9); assert.equal(b.nextTrack, 'A');
+});
+
+test('planRoutes：B→A 換軌跳過位置號、抽數與位置脫鉤', () => {
+  // 1A Gun → 2A Gun 重複(→Tin 落 3B) → 3B Tin 重複(→Pop 落 5A，跳過 4) → 5A end
+  const m = M({ X: [
+    C('1A', 'Gun', 'rare'),
+    C('2A', 'Gun', 'rare', { dupe: { name: 'Tin', rarity: 'rare', to: '3B' } }),
+    C('3B', 'Tin', 'rare', { dupe: { name: 'Pop', rarity: 'rare', to: '5A' } }),
+    C('5A', 'end', 'supa'),
+  ] });
+  const banners = [{ id: 'X', short: '特麗希' }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 't', kind: 'cell', name: 'end', accept: new Set(['X|5A']) }] });
+  assert.equal(r.feasible, true);
+  assert.equal(r.plans[0].cost.pulls, 4); // 位置 5 但只抽 4 次（跳過 4）
+  assert.deepEqual(r.plans[0].steps.map((s) => s.pos), ['1A', '2A', '3B', '5A']);
+  assert.deepEqual(r.plans[0].steps.map((s) => s.k), [1, 2, 3, 4]); // k = 第幾抽
+  assert.equal(r.plans[0].cost.switches, 2);
+  // 被跳過的位置 4 不可收集
+  const skipped = planRoutes({ merged: m, banners,
+    targets: [{ id: 't4', kind: 'cell', accept: new Set(['X|4A']) }] });
+  assert.equal(skipped.feasible, false);
+});
+
 test('pullOutcome：白金必不換軌並記票', () => {
   const m = M({ P: [C('2A', 'Gun', 'rare', { dupe: { name: 'Tin', rarity: 'rare', to: '3B' } })] });
   const o = pullOutcome(m, '白金', 2, 'A', 'Gun', 'P', false);
