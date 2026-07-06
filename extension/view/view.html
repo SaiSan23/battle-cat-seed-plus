@@ -7,37 +7,13 @@
 <header id="topbar">
   <h1>多卡池比較</h1>
   <span id="seed-label" class="badge"></span>
-</header>
-
-<div id="toolbar">
+  <span id="progress" class="spacer-left" aria-live="polite"></span>
   <label class="field">顯示抽數
     <input id="count" type="number" min="10" max="500" step="10">
   </label>
-  <label class="field">保證批次
-    <select id="guar" title="一次設定所有卡池的保證型式；個別調整用卡池列旁的下拉">
-      <option value="">批次設定…</option>
-      <option value="auto">重設為自動預設</option>
-      <option value="none">全部無</option>
-      <!-- 尺寸選項由 view.js 依 GU_SIZES 注入 -->
-    </select>
-  </label>
-  <label class="field"><input id="show-b" type="checkbox"> 顯示 B 軌</label>
-  <button id="clear-cache" type="button" class="btn-secondary">清除快取</button>
-  <label class="field">找
-    <select id="find-rarity">
-      <option value="">—</option>
-      <option value="rare">稀有</option>
-      <option value="supa">激稀有</option>
-      <option value="uber">超激稀有</option>
-      <option value="exclusive">Exclusive</option>
-      <option value="legend">傳說</option>
-    </select>
-  </label>
-  <input id="find-name" type="search" placeholder="貓名…">
-  <span id="progress" class="spacer-left"></span>
-</div>
-
-<div id="legend">
+  <button id="legend-btn" type="button" class="btn-secondary" popovertarget="legend-pop">圖例</button>
+</header>
+<div id="legend-pop" popover>
   <span class="lg"><i class="rare"></i>稀有</span>
   <span class="lg"><i class="supa"></i>激稀有</span>
   <span class="lg"><i class="supa_fest"></i>激稀有(祭)</span>
@@ -46,14 +22,49 @@
   <span class="lg"><i class="exclusive"></i>Exclusive</span>
   <span class="lg"><i class="legend"></i>傳說稀有</span>
 </div>
-<div id="progress-bar" hidden><div id="progress-fill"></div></div>
-<div id="progress-list"></div>
-<div id="banner-toggles"></div>
-<div id="route-targets" class="chips"></div>
-<div id="route-bar">
-  <button id="plan-route" type="button" class="btn-secondary" disabled>規劃路線</button>
-  <span id="route-hint" class="hint">點格子開選單加入目標；或用下方 Find 搜貓名後「加入命中」</span>
+
+<div id="controls">
+  <div class="grp" role="group" aria-label="顯示">
+    <label class="field"><input id="show-b" type="checkbox"> 顯示 B 軌</label>
+  </div>
+  <div class="grp" role="group" aria-label="保證">
+    <label class="field">保證批次
+      <select id="guar" title="一次設定所有卡池的保證型式；個別調整用卡池列旁的下拉">
+        <option value="">批次設定…</option>
+        <option value="auto">重設為自動預設</option>
+        <option value="none">全部無</option>
+        <!-- 尺寸選項由 view.js 依 GU_SIZES 注入 -->
+      </select>
+    </label>
+  </div>
+  <div class="grp" role="group" aria-label="搜尋">
+    <label class="field">找
+      <select id="find-rarity">
+        <option value="">—</option>
+        <option value="rare">稀有</option>
+        <option value="supa">激稀有</option>
+        <option value="uber">超激稀有</option>
+        <option value="exclusive">Exclusive</option>
+        <option value="legend">傳說</option>
+      </select>
+    </label>
+    <input id="find-name" type="search" placeholder="貓名…" aria-label="搜尋貓名">
+  </div>
+  <button id="clear-cache" type="button" class="btn-secondary spacer-left">清除快取</button>
 </div>
+
+<div id="progress-bar" hidden><div id="progress-fill"></div></div>
+<div id="progress-list" role="status"></div>
+
+<div id="status-band">
+  <div id="banner-toggles"></div>
+  <div id="route-area">
+    <div id="route-targets" class="chips"></div>
+    <button id="plan-route" type="button" class="btn-secondary" disabled>規劃路線</button>
+    <span id="route-hint" class="hint">點格子開選單加入目標；或用下方 Find 搜貓名後「加入命中」</span>
+  </div>
+</div>
+
 <div id="errors"></div>
 <div id="find-popup" hidden>
   <div id="find-resize" title="拖曳調整高度"></div>
@@ -68,6 +79,13 @@
   <div id="route-popup-head">
     <span class="find-title">🧭 路線方案</span>
     <button id="route-close" type="button" title="關閉">×</button>
+  </div>
+  <div id="path-legend" hidden>
+    <span class="pl"><i class="pl-step">1</i>步序</span>
+    <span class="pl"><i class="pl-switch">↹</i>換軌</span>
+    <span class="pl"><i class="pl-ticket"></i>用券</span>
+    <span class="pl"><i class="pl-gu"></i>確定連抽</span>
+    <span class="pl"><i class="pl-target"></i>目標</span>
   </div>
   <div id="route-body"></div>
 </div>

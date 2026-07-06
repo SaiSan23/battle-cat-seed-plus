@@ -3,6 +3,7 @@
   "name": "Battle Cats Seed+ 多卡池比較",
   "version": "0.1.0",
   "description": "在 godfat 種子頁一次比較多個卡池",
+  "minimum_chrome_version": "114",
   "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": ["https://bc.godfat.org/*"],
   "action": {

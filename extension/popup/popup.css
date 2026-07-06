@@ -1,31 +1,53 @@
 :root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
   --surface: #fff;
   --border: #e4e7ec;
   --text: #1f2937;
   --muted: #6b7280;
   --accent: #3b5bdb;
   --accent-weak: #eef1fe;
+  --accent-strong: #2f49b8;
+  --badge-border: #d6def9;
+  --on-accent: #fff;
   --rc: 6px;
   --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* 深色模式：與 view.css 同一套色系，只覆寫變數 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --surface: #1e2128;
+    --border: #32363f;
+    --text: #e5e7eb;
+    --muted: #9aa1ac;
+    --accent: #748ffc;
+    --accent-weak: rgba(116, 143, 252, .15);
+    --accent-strong: #91a7ff;
+    --badge-border: #3a4468;
+    --on-accent: #101223;
+  }
 }
 
 * { box-sizing: border-box; }
 
 body {
   width: 360px; margin: 0; padding: 12px;
-  color: var(--text); background: #f6f7f9;
+  color: var(--text); background: var(--bg);
   font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
 }
 
 #status { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 #status .badge {
   font: 12px/1 var(--mono); color: var(--accent); background: var(--accent-weak);
-  border: 1px solid #d6def9; padding: 4px 8px; border-radius: 999px;
+  border: 1px solid var(--badge-border); padding: 4px 8px; border-radius: 999px;
 }
 
 #filter {
   width: 100%; font: inherit; padding: 7px 10px; margin-bottom: 8px;
   border: 1px solid var(--border); border-radius: var(--rc); background: var(--surface);
+  color: var(--text);
 }
 #filter:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
 
@@ -48,7 +70,7 @@ body {
 
 #load {
   width: 100%; padding: 9px; font: inherit; font-weight: 700; cursor: pointer;
-  color: #fff; background: var(--accent); border: none; border-radius: var(--rc);
+  color: var(--on-accent); background: var(--accent); border: none; border-radius: var(--rc);
 }
-#load:hover { background: #2f49b8; }
+#load:hover { background: var(--accent-strong); }
 #load:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-weak); }
