@@ -14,6 +14,9 @@
 
 * { box-sizing: border-box; }
 
+/* display:flex 等會蓋過 hidden 屬性的 UA 樣式，一律以屬性選擇器強制隱藏 */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   padding: 16px;
@@ -263,7 +266,6 @@ tbody td.path-gu { outline: 3px double #0b7285; outline-offset: -3px; }
 #cell-menu { position: fixed; z-index: 30; display: flex; flex-direction: column; min-width: 190px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--rc);
   box-shadow: 0 6px 24px rgba(0, 0, 0, .18); padding: 4px; }
-#cell-menu[hidden] { display: none; }
 #cell-menu button { border: none; background: none; text-align: left; font: inherit; padding: 7px 10px;
   border-radius: 4px; cursor: pointer; color: var(--text); white-space: nowrap; }
 #cell-menu button:hover { background: var(--accent-weak); color: var(--accent); }
