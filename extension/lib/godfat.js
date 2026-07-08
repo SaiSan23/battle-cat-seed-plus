@@ -34,6 +34,7 @@ export function parseSeedParamsFromUrl(urlString) {
     count: num(url.searchParams.get('count')),
     lang: url.searchParams.get('lang') ?? undefined,
     last: num(url.searchParams.get('last')),
+    forceGuaranteed: num(url.searchParams.get('force_guaranteed')) || undefined, // 0＝原生，視同未帶
   };
   Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
   return out;

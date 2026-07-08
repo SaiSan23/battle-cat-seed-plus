@@ -59,6 +59,10 @@ $('#load').addEventListener('click', () => {
   });
   // last 影響 1A 是否為重複稀有，必須帶上
   if (SEED.last != null) params.set('last', SEED.last);
+  // godfat 頁若帶 force_guaranteed 且該卡池有被勾選 → 帶給 view 作該卡池的初始強制值
+  if (SEED.forceGuaranteed && SEED.event && ids.includes(SEED.event)) {
+    params.set('force', `${SEED.event}:${SEED.forceGuaranteed}`);
+  }
   chrome.tabs.create({ url: chrome.runtime.getURL('view/view.html') + '?' + params });
 });
 

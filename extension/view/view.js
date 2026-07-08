@@ -34,13 +34,21 @@ let lastPlanResult = null; // 最近一次規劃結果
 // 逐卡池「強制保證」（模擬用，localStorage 持久化）：''＝原生——不帶 force_guaranteed，
 // godfat 會依該場次遊戲資料的必中旗標（guaranteed→11、step_up→15）自動填保證欄；
 // 7/11/15＝force_guaranteed 覆蓋，僅在想模擬「這場沒有的必中」時使用。
-const GU_SIZES = ['7', '11', '15']; // 支援的強制尺寸；批次與逐卡池下拉皆由此產生
+const GU_SIZES = ['2', '7', '11', '15']; // godfat force_guaranteed 支援值；批次與逐卡池下拉皆由此產生
 const GU_KEY = 'bcsp:gu-force';
 localStorage.removeItem('bcsp:gu-values'); // 舊版鍵：值來自「照名稱猜必中」的錯誤預設，直接淘汰
 let guValues = new Map();
 try { guValues = new Map(Object.entries(JSON.parse(localStorage.getItem(GU_KEY) || '{}'))); } catch { /* 壞值 → 空 */ }
 function saveGu() { localStorage.setItem(GU_KEY, JSON.stringify(Object.fromEntries(guValues))); }
 function guFor(id) { return guValues.get(id) ?? ''; }
+// popup 帶入 godfat 頁的 force_guaranteed（格式「event:size」）：只當初始值，不蓋使用者已存的設定
+{
+  const [fev, fsize] = (qp.get('force') || '').split(':');
+  if (fev && GU_SIZES.includes(fsize) && eventIds.includes(fev) && !guValues.has(fev)) {
+    guValues.set(fev, fsize);
+    saveGu();
+  }
+}
 
 // /cats 對照表（貓名→實際稀有度＋id）：每日快取一次；未載入/失敗為 null，
 // 稀有度判定退回 rarity.js 名單法。godfat 底色是固定 score 區間，機率特殊的

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEventUrl, parseSeedParamsFromUrl } from '../extension/lib/godfat.js';
+import { buildEventUrl, parseSeedParamsFromUrl, buildCatsUrl } from '../extension/lib/godfat.js';
 
 test('buildEventUrl 組出完整網址且省略空值', () => {
   const url = buildEventUrl({ seed: 2268003930, event: '2026-04-24_1047', count: 50, lang: 'tw' });
@@ -35,4 +35,16 @@ test('parseSeedParamsFromUrl 解析 godfat 種子頁', () => {
 test('parseSeedParamsFromUrl 對非 godfat 或無 seed 回傳 null', () => {
   assert.equal(parseSeedParamsFromUrl('https://example.com/?seed=1'), null);
   assert.equal(parseSeedParamsFromUrl('https://bc.godfat.org/cats/1'), null);
+});
+
+test('parseSeedParamsFromUrl 吸收 force_guaranteed（0 視同未帶）', () => {
+  const p = parseSeedParamsFromUrl('https://bc.godfat.org/?seed=1&event=e&force_guaranteed=11');
+  assert.equal(p.forceGuaranteed, 11);
+  const zero = parseSeedParamsFromUrl('https://bc.godfat.org/?seed=1&force_guaranteed=0');
+  assert.ok(!('forceGuaranteed' in zero));
+});
+
+test('buildCatsUrl 組出 /cats 清單頁網址', () => {
+  assert.equal(buildCatsUrl('tw'), 'https://bc.godfat.org/cats?lang=tw');
+  assert.equal(buildCatsUrl(), 'https://bc.godfat.org/cats?lang=tw');
 });
