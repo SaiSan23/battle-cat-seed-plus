@@ -39,7 +39,8 @@ export function parseRollTable(doc) {
   if (!table) return { hasGuaranteed: false, cells };
 
   // 注意：godfat 的「Guaranteed」表頭永遠存在，不代表卡池有必中。
-  // 保證欄只有以 force_guaranteed 模擬時才會填入；故 hasGuaranteed 取決於是否真的解析到保證格。
+  // 保證欄在「場次自帶必中旗標」或「force_guaranteed 模擬」時才會填入；
+  // 故 hasGuaranteed 取決於是否真的解析到保證格。
   let hasGuaranteed = false;
 
   for (const td of table.querySelectorAll('td.cat[onclick]')) {
@@ -98,4 +99,21 @@ export function parseRollTable(doc) {
     hasGuaranteed = true;
   }
   return { hasGuaranteed, cells };
+}
+
+// 由 G 格落點推導保證連抽尺寸（godfat 原生旗標 guaranteed→11、step_up→15，或 force 值）。
+// 保證抽半步位移的逆運算：A 軌 size = to.n - n + 1、B 軌 size = to.n - n。
+// 路徑上撞到重複稀有會換軌使個別格偏移，取眾數；無保證格回 null。
+// 僅用乾淨起手的 guaranteed（RG 撞名起手的位移不同構，不納入）。
+export function guaranteedSize(cells) {
+  const votes = new Map();
+  for (const c of cells.values()) {
+    const m = (c.guaranteed?.to || '').match(/^(\d+)[AB]/);
+    if (!m) continue;
+    const size = Number(m[1]) - c.n + (c.track === 'A' ? 1 : 0);
+    if (size > 0) votes.set(size, (votes.get(size) || 0) + 1);
+  }
+  let best = null;
+  for (const [size, count] of votes) if (best === null || count > votes.get(best)) best = size;
+  return best;
 }

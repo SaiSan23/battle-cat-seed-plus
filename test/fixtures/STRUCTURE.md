@@ -27,10 +27,15 @@
   - `next_position`：標記目前位置。
 - **score 格**：`td.score` 帶 `onclick="pick('<n><A|B>X')"`（**X 字尾＝score 子列**，非保證欄），預設視圖**永遠空白**。
 
-## 保證欄：需以 `force_guaranteed` 參數啟用
-- **預設視圖**（無 `force_guaranteed`）：Guaranteed / Alt. guaranteed 欄的 `td.cat` 全部無 onclick 且無內容（實測 1047 與 1048 兩卡池皆為 100 個保證格全空）。
-- 控制項：`<select id="force_guaranteed_input" name="force_guaranteed">`，值 `""`/`2`/`7`/`11`/`15`。標題：「Force show guaranteed even when this gacha banner doesn't have it」。
-- **加上 `&force_guaranteed=11`（一般）或 `=15`（Buster step-up）後**，保證欄即填入：
+## 保證欄：原生逐場次自動顯示；`force_guaranteed` 僅為覆蓋
+- **（2026-07-08 更正）**原「保證欄需 force_guaranteed 啟用、godfat 從不自動填」的結論**是錯的**——
+  當初實測的 1047/1048 是白金/傳說**票池**，遊戲資料本來就沒必中旗標，保證欄才全空。
+- godfat 的遊戲資料（`build/bc-tw.yaml`）**逐場次**帶 `guaranteed: true`（11 連）或 `step_up: true`
+  （15 連）旗標；無 `force_guaranteed` 參數時，godfat 依旗標**自動填入**保證欄
+  （`gacha_pool.rb#guaranteed_rolls`：guaranteed→11、step_up→15、無旗標→0）。
+  必中是**場次**屬性非卡池屬性：同一卡池（如革命軍團 979）2026-06-05 場次有 `guaranteed`、2026-07-03 場次沒有。
+- 控制項：`<select id="force_guaranteed_input" name="force_guaranteed">`，值 `""`/`2`/`7`/`11`/`15`。標題：「Force show guaranteed even when this gacha banner doesn't have it」——非 0 時**蓋過**原生值，僅供模擬。
+- 保證欄有值時（原生旗標或 force 皆同構）：
   - 保證格為 `td.cat[onclick="pick('<n><A|B>G')"]`（**`G` 字尾**），含貓名與稀有度 class。
   - 例（起始 1A）：`1AG`=開花爺爺、`1BG`=非命之王佛挪。
   - 換軌落點：藏在 G 格 `<a href>` 的 `seed`/`last` 參數（保證抽後的新種子與位置），**非箭頭字元**。
@@ -63,3 +68,12 @@
 - 578 G ＋ 13 RG 保證格已以「逐抽模擬＋保證抽半步位移」全數驗證落點與箭頭一致
   （見 test/route.gu.test.js 資料驅動測試）。
 - `X`/`GX` 字尾仍為 score 子列（預設空白），與本頁其他字尾無關。
+
+## native-gu-banner.html（2026-07-08 新增）
+
+革命軍團卡池**原生必中**場次（seed=1、event=2026-06-05_979、lang=tw、count=30，**未帶 force_guaranteed**）。
+
+- 該場次在 bc-tw.yaml 帶 `guaranteed: true`（11 連）；頁面不帶 force 參數即自動填入 40 個 G 格，
+  結構與 forced 頁完全相同（`1AG` 溫泉天堂・浴場隊 `-> 11B`）。
+- 用途：驗證「原生保證頁可解析」與「GU 尺寸由 G 格落點差推導＝11」。
+- G 格落點差公式：A 軌 `to.n - n + 1`、B 軌 `to.n - n`（保證抽半步位移的逆運算）。
