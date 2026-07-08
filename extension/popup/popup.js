@@ -6,7 +6,8 @@ function isRunningToday(name) {
   // 名稱格式："YYYY-MM-DD ~ YYYY-MM-DD: ..."
   const m = name.match(/(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})/);
   if (!m) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  // sv 地區格式即 YYYY-MM-DD（本地時區，與 view 一致）；UTC 會在台灣早上 8 點前差一天
+  const today = new Date().toLocaleDateString('sv');
   return m[1] <= today && today <= m[2];
 }
 
