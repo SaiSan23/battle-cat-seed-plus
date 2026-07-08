@@ -34,7 +34,8 @@ function render(events) {
       lastGroup = e.group;
     }
     const li = document.createElement('li');
-    const checked = isRunningToday(e.name) ? 'checked' : '';
+    // 預設勾選：進行中的卡池＋目前 godfat 頁正在瀏覽的卡池（event 參數）
+    const checked = isRunningToday(e.name) || e.id === SEED?.event ? 'checked' : '';
     li.innerHTML = `<label><input type="checkbox" value="${e.id}" ${checked}> ${e.name}</label>`;
     list.appendChild(li);
   }
