@@ -54,11 +54,14 @@ export function cacheSet(key, { name, parsed }) {
   }
 }
 
+// 使用者設定鍵：清快取（手動清除或配額滿自動騰空間）時保留，只清資料快取
+const SETTINGS_KEYS = new Set(['bcsp:gu-force', 'bcsp:route-popup-pos']);
+
 function clearNamespace(s) {
   const keys = [];
   for (let i = 0; i < s.length; i++) {
     const k = s.key(i);
-    if (k && k.startsWith('bcsp:')) keys.push(k); // 含舊版本孤兒
+    if (k && k.startsWith('bcsp:') && !SETTINGS_KEYS.has(k)) keys.push(k); // 含舊版本孤兒
   }
   keys.forEach((k) => s.removeItem(k));
 }

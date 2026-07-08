@@ -25,3 +25,28 @@ test('serializeParsed / deserializeParsed Map 往返一致', () => {
   assert.ok(round.cells instanceof Map);
   assert.deepEqual(round.cells.get('1A'), cell);
 });
+
+test('clearCache 清資料快取但保留使用者設定鍵', async () => {
+  // 最小 localStorage mock（cache.js 以 typeof localStorage 探測）
+  const store = new Map([
+    ['bcsp:v4:1|e|100||', '{}'],
+    ['bcsp:cats:tw', '{}'],
+    ['bcsp:gu-force', '{"e":"11"}'],
+    ['bcsp:route-popup-pos', '{"left":8,"top":8}'],
+    ['unrelated', 'x'],
+  ]);
+  globalThis.localStorage = {
+    get length() { return store.size; },
+    key: (i) => [...store.keys()][i],
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  try {
+    const { clearCache } = await import('../extension/lib/cache.js');
+    assert.equal(clearCache(), true);
+    assert.deepEqual([...store.keys()].sort(), ['bcsp:gu-force', 'bcsp:route-popup-pos', 'unrelated']);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
