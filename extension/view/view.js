@@ -3,7 +3,7 @@ import { parseRollTable, guaranteedSize } from '../lib/parser.js';
 import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
 import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
-import { cacheKey, cacheGet, cacheSet, clearCache } from '../lib/cache.js';
+import { cacheKey, cacheGet, cacheSet, clearCache, purgeOldCaches } from '../lib/cache.js';
 import { planRoutes } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
 import { parseCatList, serializeCatList, deserializeCatList } from '../lib/catlist.js';
@@ -37,6 +37,7 @@ let lastPlanResult = null; // 最近一次規劃結果
 const GU_SIZES = ['2', '7', '11', '15']; // godfat force_guaranteed 支援值；批次與逐卡池下拉皆由此產生
 const GU_KEY = 'bcsp:gu-force';
 localStorage.removeItem('bcsp:gu-values'); // 舊版鍵：值來自「照名稱猜必中」的錯誤預設，直接淘汰
+purgeOldCaches(); // 舊命名空間（v4 以前）孤兒鍵主動釋放
 let guValues = new Map();
 try { guValues = new Map(Object.entries(JSON.parse(localStorage.getItem(GU_KEY) || '{}'))); } catch { /* 壞值 → 空 */ }
 function saveGu() { localStorage.setItem(GU_KEY, JSON.stringify(Object.fromEntries(guValues))); }
@@ -90,21 +91,27 @@ function makeEntry(id, name, parsed, cached) {
 }
 
 async function fetchBanner(id, useCount, force) {
-  const key = cacheKey({ seed, event: id, count: useCount, force, last });
+  // 快取一池一份、就大不就小：需求 ≤ 快取 count → 直接沿用（顯示端裁切，縮小抽數不重抓）
+  const key = cacheKey({ seed, event: id, force, last });
   const hit = cacheGet(key);
-  if (hit) return makeEntry(id, hit.name, hit.parsed, true);
+  if (hit && hit.count >= useCount) return makeEntry(id, hit.name, hit.parsed, true);
 
-  // force 為空字串時不傳 forceGuaranteed（原生：godfat 依場次必中旗標自動填保證欄）
-  const forceGuaranteed = force ? Number(force) : undefined;
-  const url = buildEventUrl({ seed, event: id, count: useCount, lang, last, forceGuaranteed });
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const html = await res.text();
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const parsed = parseRollTable(doc);
-  const name = doc.querySelector('#event_select option[selected]')?.textContent.trim() || id;
-  cacheSet(key, { name, parsed });
-  return makeEntry(id, name, parsed, false);
+  try {
+    // force 為空字串時不傳 forceGuaranteed（原生：godfat 依場次必中旗標自動填保證欄）
+    const forceGuaranteed = force ? Number(force) : undefined;
+    const url = buildEventUrl({ seed, event: id, count: useCount, lang, last, forceGuaranteed });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const parsed = parseRollTable(doc);
+    const name = doc.querySelector('#event_select option[selected]')?.textContent.trim() || id;
+    cacheSet(key, { name, count: useCount, parsed });
+    return makeEntry(id, name, parsed, false);
+  } catch (err) {
+    if (hit) return makeEntry(id, hit.name, hit.parsed, true); // 調大失敗 → 先用較小的舊快取頂著
+    throw err;
+  }
 }
 
 function currentParams() {
@@ -205,6 +212,7 @@ function renderTable(entries) {
   const out = [`<thead>${headRows.join('')}</thead>`];
   const body = [];
   for (const n of merged.numbers) {
+    if (n > useCount) break; // 快取可能大於目前顯示抽數（就大不就小）→ 裁切顯示
     const posLabel = showB ? String(n) : `${n}A`;
     const tds = [`<td class="pos">${posLabel}</td>`];
     for (let bi = 0; bi < visible.length; bi++) {
@@ -602,7 +610,10 @@ function runPlan() {
       const merged = mergeBanners(currentEntries);
       const targets = [...routeTargets.values()];
       const today = new Date().toLocaleDateString('sv'); // sv 地區格式即 YYYY-MM-DD（本地時區）
-      lastPlanResult = planRoutes({ merged, targets, banners, options: { lastName: null, today, catRarity: catMap } });
+      // 規劃視野與顯示一致：快取資料可能大於目前顯示抽數，超出畫面的路線無法對照
+      const { useCount } = currentParams();
+      lastPlanResult = planRoutes({ merged, targets, banners,
+        options: { lastName: null, today, catRarity: catMap, maxPos: useCount } });
       renderPlanList(lastPlanResult);
     } catch (err) {
       document.querySelector('#route-popup').hidden = false;
