@@ -6,7 +6,7 @@
 
 - `gu-banner.html`：白金轉蛋 `2026-04-24_1047`（保證 11 連抽卡池，表頭含 Guaranteed）。
 - 未擷取 normal-banner.html：**當期 TW 卡池清單中所有可轉蛋卡池皆含 Guaranteed 欄**（實測 12 個皆然），找不到純無保證卡池。`hasGuaranteed=false` 路徑改以 Task 4 的最小 inline HTML 測試覆蓋。
-- 註：部分事件 ID（如 `2026-06-19_1015`）為非轉蛋事件，會 302 redirect（回應含 `Jellyfish found`），需排除。`count` 太小（如 8）會回 500，使用 `count>=50`。
+- 註：部分事件 ID（如 `2026-06-19_1015`）為非轉蛋事件，會 302 redirect（回應含 `Jellyfish found`），需排除。`count` 範圍 1–999（`root.rb` TrackMaxCount=999，超出會被夾回）；原「count 太小（如 8）會回 500」的紀錄已過時（2026-07-08 實測 count=8 回 200），fixture 仍建議 `count>=50` 以涵蓋足夠結構。
 
 ## 事件下拉
 - 選擇器：`#event_select option`
@@ -39,7 +39,15 @@
   - 保證格為 `td.cat[onclick="pick('<n><A|B>G')"]`（**`G` 字尾**），含貓名與稀有度 class。
   - 例（起始 1A）：`1AG`=開花爺爺、`1BG`=非命之王佛挪。
   - 換軌落點：藏在 G 格 `<a href>` 的 `seed`/`last` 參數（保證抽後的新種子與位置），**非箭頭字元**。
+- 換軌落點箭頭：格內文字如「`-> 11B`」（落 B 軌）／「`<- 12A`」（落回 A 軌）；
+  **落點超出已載入範圍時顯示 `<?>`**（`view.rb#link_to_next`）——parser 的箭頭 regex
+  不會命中 → `to=''`，路線規劃對該格用 fallback 公式或跳過。
 - fixture `gu-banner-forced11.html` 即 `event=2026-04-24_1047&force_guaranteed=11` 擷取。
+
+## 防禦性註記：find / o 參數會改格子 class
+godfat 網址帶 `find=<id>`（搜貓）時命中格 class 換成 `found`、帶 `o=...`（持有清單）時有
+`owned` 類覆蓋——**取代稀有度 class** 會使 parser 的 `rarityOf` 回 null 而跳過該格。
+本工具抓取時一律不帶 `find`/`o`，故不受影響；未來若要帶，parser 需先擴充。
 
 ## 稀有度／型別 class 完整清單
 `rare`｜`supa`｜`supa_fest`｜`uber`｜`uber_fest`｜`exclusive`（`legend` 亦可能出現，未在此 fixture 觀察到）。
