@@ -1,5 +1,5 @@
 // 從 1A 規劃收齊目標貓的抽卡路線（純函式，不自算種子）
-import { effectiveRarity } from './rarity.js';
+import { actualRarity } from './rarity.js';
 
 export const UNCERTAIN = ' UNCERTAIN';
 const SPECIAL = { '白金': 'plat', '黑金': 'legend' };
@@ -24,15 +24,15 @@ function dupeLanding(n, track, to) {
 }
 
 // 一次單抽的結果。isStart=true 時（n===1）以 godfat 已標的 1A dupe 判定撞 last 的換軌。
-export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, isStart) {
+// catRarity＝/cats 對照表（可省略），撞名觸發僅在「實際稀有」發生（godfat duped? 限定 Rare）。
+export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, isStart, catRarity) {
   const posStr = `${n}${track}`;
   const cell = merged.byPos.get(posStr)?.get(bannerId);
   if (!cell) return null;
   const ticket = SPECIAL[bannerShort] || null;
   const isSpecial = !!ticket;
-  // 觸發條件用有效稀有度：非祭池的 supa_fest 降級為稀有、也會撞名觸發
   const dupe = !isSpecial && (
-    (effectiveRarity(cell.rarity, bannerShort) === 'rare' && lastName != null && cell.name === lastName) ||
+    (actualRarity(cell.name, cell.rarity, bannerShort, catRarity) === 'rare' && lastName != null && cell.name === lastName) ||
     (isStart && !!cell.dupe)
   );
   if (dupe) {
@@ -52,19 +52,19 @@ export function pullOutcome(merged, bannerShort, n, track, lastName, bannerId, i
 // 落點以 godfat G/RG 格箭頭為準；撞名起手（抵達即與上一抽同名重複，或 isStart 時
 // godfat 已依 last 標好的 1A dupe）用 RG 資料——規則與 pullOutcome 的觸發條件一致。
 // 已以 dupe-forced11-banner fixture 的 591 個保證格全數驗證（見 test/route.gu.test.js）。
-export function simulateGuaranteed(merged, bannerShort, n, track, lastName, bannerId, size, isStart) {
+export function simulateGuaranteed(merged, bannerShort, n, track, lastName, bannerId, size, isStart, catRarity) {
   if (SPECIAL[bannerShort]) return null; // 票池無確定連抽
   const startCell = merged.byPos.get(`${n}${track}`)?.get(bannerId);
   if (!startCell) return null;
   const dupStart =
-    (effectiveRarity(startCell.rarity, bannerShort) === 'rare' && lastName != null && startCell.name === lastName) ||
+    (actualRarity(startCell.name, startCell.rarity, bannerShort, catRarity) === 'rare' && lastName != null && startCell.name === lastName) ||
     (isStart && !!startCell.dupe);
   const gcell = dupStart ? startCell.dupeGuaranteed : startCell.guaranteed;
   if (!gcell?.name) return null;
   const steps = [];
   let curN = n, curT = track, last = lastName;
   for (let i = 0; i < size - 1; i++) {
-    const o = pullOutcome(merged, bannerShort, curN, curT, last, bannerId, i === 0 && !!isStart);
+    const o = pullOutcome(merged, bannerShort, curN, curT, last, bannerId, i === 0 && !!isStart, catRarity);
     if (!o) return null; // 中間格超出載入範圍
     steps.push(o);
     curN = o.nextN; curT = o.nextTrack; last = o.gotName;
@@ -213,6 +213,7 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
   const cellIdx = buildCellIndex(targets);
   const bannerById = new Map(banners.map((b) => [b.id, b]));
   const today = options.today ?? '';
+  const catRarity = options.catRarity; // /cats 對照表（可省略 → rarity.js 名單法 fallback）
 
   const candidates = []; // { pulls, plat, legend, switches, mask, steps }
   // frontier 按位置索引：B→A 換軌落點為 n+2，標籤需在正確的位置輪次被處理
@@ -221,8 +222,9 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
     if (!byPos.has(n)) byPos.set(n, new Map());
     insertLabel(byPos.get(n), key, label);
   };
-  // simulateGuaranteed 結果只依 (bannerId, n, track, lastName) 決定（與 mask/plat/legend/
-  // switches/gu 無關），不同 Pareto 標籤常共用同一組合，快取避免重複跑 size-1 次模擬。
+  // simulateGuaranteed 結果只依 (bannerId, n, track, lastName, catRarity) 決定（與 mask/plat/
+  // legend/switches/gu 無關），不同 Pareto 標籤常共用同一組合，快取避免重複跑 size-1 次模擬。
+  // catRarity 單次 planRoutes 內恆定、快取僅活在本次呼叫，故鍵不含它。
   const guCache = new Map();
   const start = { k: 0, plat: 0, legend: 0, gu: 0, switches: 0, mask: 0, track: 'A',
     lastName: options.lastName ?? null, lb: today, steps: [] };
@@ -236,7 +238,7 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
         for (const b of banners) {
           if (b.hidden) continue; // 被隱藏的卡池不入路線（僅供 reasonFor 判讀）
           if (b.end && b.end < L.lb) continue; // 於目前時間下界已結束
-          const o = pullOutcome(merged, b.short, n, L.track, L.lastName, b.id, n === 1);
+          const o = pullOutcome(merged, b.short, n, L.track, L.lastName, b.id, n === 1, catRarity);
           if (!o) continue;
           const lb = b.start && b.start > L.lb ? b.start : L.lb; // 抽未來卡池 → 時間推進
           const k = L.k + 1; // 第幾抽（B→A 換軌會跳過位置號，抽數與位置脫鉤）
@@ -258,7 +260,7 @@ export function planRoutes({ merged, targets, banners, options = {} }) {
             const gKey = `${b.id}|${n}|${L.track}|${L.lastName == null ? '' : L.lastName}`;
             let g = guCache.get(gKey);
             if (g === undefined) {
-              g = simulateGuaranteed(merged, b.short, n, L.track, L.lastName, b.id, b.gu, n === 1);
+              g = simulateGuaranteed(merged, b.short, n, L.track, L.lastName, b.id, b.gu, n === 1, catRarity);
               guCache.set(gKey, g);
             }
             if (g) {

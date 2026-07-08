@@ -1,11 +1,12 @@
-import { buildEventUrl } from '../lib/godfat.js';
+import { buildEventUrl, buildCatsUrl } from '../lib/godfat.js';
 import { parseRollTable, guaranteedSize } from '../lib/parser.js';
 import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
 import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache } from '../lib/cache.js';
 import { planRoutes } from '../lib/route.js';
-import { effectiveRarity } from '../lib/rarity.js';
+import { actualRarity } from '../lib/rarity.js';
+import { parseCatList, serializeCatList, deserializeCatList } from '../lib/catlist.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -40,6 +41,36 @@ let guValues = new Map();
 try { guValues = new Map(Object.entries(JSON.parse(localStorage.getItem(GU_KEY) || '{}'))); } catch { /* 壞值 → 空 */ }
 function saveGu() { localStorage.setItem(GU_KEY, JSON.stringify(Object.fromEntries(guValues))); }
 function guFor(id) { return guValues.get(id) ?? ''; }
+
+// /cats 對照表（貓名→實際稀有度＋id）：每日快取一次；未載入/失敗為 null，
+// 稀有度判定退回 rarity.js 名單法。godfat 底色是固定 score 區間，機率特殊的
+// 卡池（限定池 6470、超國王祭 6770 等）光靠 class 換算必錯，故以此表為準。
+const CATS_KEY = `bcsp:cats:${lang}`;
+let catMap = null;
+async function loadCatList() {
+  const today = new Date().toLocaleDateString('sv');
+  let cached = null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(CATS_KEY) || 'null');
+    if (raw?.names) {
+      cached = deserializeCatList(raw.names);
+      if (raw.date === today) return cached; // 當日已抓過 → 不重抓（禮貌性）
+    }
+  } catch { /* 壞值 → 重抓 */ }
+  try {
+    const res = await fetch(buildCatsUrl(lang));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const map = parseCatList(doc);
+    if (!map.size) return cached; // 結構變動解析不到 → 用過期快取頂著
+    try {
+      localStorage.setItem(CATS_KEY, JSON.stringify({ date: today, names: serializeCatList(map) }));
+    } catch { /* 配額滿 → 只用不存 */ }
+    return map;
+  } catch {
+    return cached; // 離線/失敗 → 過期快取或 null（fallback 名單法）
+  }
+}
 
 function makeEntry(id, name, parsed, cached) {
   const date = bannerDateRange(name);
@@ -184,26 +215,28 @@ function renderTable(entries) {
 const RARITY_GROUP = {
   rare: ['rare'],
   supa: ['supa'],
-  uber: ['uber', 'exclusive', 'legend'], // 超激稀有以上：含 exclusive 與 傳說(legend)；有效稀有度已把 (祭) 換算成基本值
-  exclusive: ['exclusive'],
+  uber: ['uber', 'exclusive', 'legend'], // 超激稀有以上：含 exclusive 與 傳說(legend)
   legend: ['legend'],
+  // exclusive（限定）是格子的顯示屬性而非稀有度，applyFind 直接比對原始 class
 };
 
-// 有效稀有度（過濾用）：(祭) 格依卡池是否祭典換算、票池必超激——規則見 lib/rarity.js
+// 實際稀有度（過濾用）：/cats 對照表為準，查無時名單法換算——規則見 lib/rarity.js
 function effRarity(td) {
   const short = lastVisibleShorts[Number(td.getAttribute('data-bi'))];
-  return effectiveRarity(td.getAttribute('data-r'), short);
+  return actualRarity(td.getAttribute('data-n'), td.getAttribute('data-r'), short, catMap);
 }
 
 let findMatches = []; // [{td, pos, bi, name, rarity}]，供矩陣與跳轉用
 function applyFind() {
   const n = document.querySelector('#find-name').value.trim();
-  const grp = document.querySelector('#find-rarity').value ? RARITY_GROUP[document.querySelector('#find-rarity').value] : null;
-  const active = grp || n;
+  const rv = document.querySelector('#find-rarity').value;
+  const grp = rv ? RARITY_GROUP[rv] : null;
+  const active = rv || n;
   findMatches = [];
   for (const td of document.querySelectorAll('#grid tbody td[data-r]')) {
     const er = effRarity(td);
-    const okR = !grp || grp.includes(er);
+    // exclusive（限定）比原始 class；其餘比實際稀有度
+    const okR = !rv || (rv === 'exclusive' ? td.getAttribute('data-r') === 'exclusive' : grp.includes(er));
     const okN = !n || td.getAttribute('data-n').includes(n);
     const hit = !!active && okR && okN;
     td.classList.toggle('found', hit);
@@ -213,7 +246,7 @@ function applyFind() {
         pos: td.getAttribute('data-pos'),
         bi: Number(td.getAttribute('data-bi')),
         name: td.getAttribute('data-n'),
-        rarity: er, // 有效稀有度（白金/黑金 已視為 uber）：供比對/篩選
+        rarity: er, // 實際稀有度（/cats 對照表為準，白金/黑金必超激）：供比對/篩選
         origRarity: td.getAttribute('data-r'), // 原始天然稀有度：色條沿用 godfat 底色
       });
     }
@@ -560,7 +593,7 @@ function runPlan() {
       const merged = mergeBanners(currentEntries);
       const targets = [...routeTargets.values()];
       const today = new Date().toLocaleDateString('sv'); // sv 地區格式即 YYYY-MM-DD（本地時區）
-      lastPlanResult = planRoutes({ merged, targets, banners, options: { lastName: null, today } });
+      lastPlanResult = planRoutes({ merged, targets, banners, options: { lastName: null, today, catRarity: catMap } });
       renderPlanList(lastPlanResult);
     } catch (err) {
       document.querySelector('#route-popup').hidden = false;
@@ -714,5 +747,11 @@ document.querySelector('#clear-cache').addEventListener('click', (ev) => {
 if (!seed || eventIds.length === 0) {
   document.querySelector('#progress').textContent = '缺少 seed 或卡池參數。';
 } else {
+  // 對照表與卡池並行載入；表先到先用，晚到則補套一次過濾（catMap 就緒前為名單法）
+  loadCatList().then((m) => {
+    if (!m) return;
+    catMap = m;
+    applyFind();
+  });
   load();
 }

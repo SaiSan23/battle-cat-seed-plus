@@ -11,6 +11,11 @@ export function buildEventUrl({ seed, event, count, lang, last, forceGuaranteed 
   return `${GODFAT_ORIGIN}?${qs}`;
 }
 
+// /cats 清單頁（全貓依稀有度分組，供 lib/catlist.js 建對照表）
+export function buildCatsUrl(lang) {
+  return `${GODFAT_ORIGIN}cats?lang=${encodeURIComponent(lang || 'tw')}`;
+}
+
 export function parseSeedParamsFromUrl(urlString) {
   let url;
   try {

@@ -439,3 +439,44 @@ test('planRoutes：不同總券數（2白金 vs 1傳說）兩案並列', () => {
   const costs = r.plans.map((p) => `${p.cost.pulls}/${p.cost.plat}/${p.cost.legend}`).sort();
   assert.deepEqual(costs, ['2/0/1', '2/2/0']); // 1 傳說券 vs 2 白金券並列
 });
+
+// ── catRarity（/cats 對照表）下的撞名觸發 ──
+test('pullOutcome＋catRarity：超國王祭 supa_fest 格實為稀有 → 撞名觸發重抽', () => {
+  const cats = new Map([['貓咪格鬥家', { rarity: 'rare', id: 524 }]]);
+  const m = M({ X: [C('9A', '貓咪格鬥家', 'supa_fest', { dupe: { name: 'Tin', rarity: 'rare', to: '10B' } })] });
+  // 名單法把祭池 supa_fest 當激稀有 → 不觸發（錯）
+  const before = pullOutcome(m, '超國王祭', 9, 'A', '貓咪格鬥家', 'X', false);
+  assert.equal(before.switched, false);
+  // 對照表：實際稀有 → 觸發（對）
+  const after = pullOutcome(m, '超國王祭', 9, 'A', '貓咪格鬥家', 'X', false, cats);
+  assert.equal(after.switched, true);
+  assert.equal(after.gotName, 'Tin');
+});
+
+test('pullOutcome＋catRarity：限定池 supa_fest 格實為激稀有 → 撞名不觸發', () => {
+  const cats = new Map([['衝浪貓', { rarity: 'supa', id: 200 }]]);
+  const m = M({ X: [C('5A', '衝浪貓', 'supa_fest')] });
+  // 名單法把非祭池 supa_fest 降成稀有 → 誤觸發 uncertain（錯）
+  const before = pullOutcome(m, '路諾斯', 5, 'A', '衝浪貓', 'X', false);
+  assert.equal(before.switched, true);
+  // 對照表：實際激稀有 → 不觸發、直接拿主格（對）
+  const after = pullOutcome(m, '路諾斯', 5, 'A', '衝浪貓', 'X', false, cats);
+  assert.equal(after.switched, false);
+  assert.equal(after.gotName, '衝浪貓');
+});
+
+test('planRoutes：options.catRarity 傳入後路線依實際稀有度判定撞名', () => {
+  const cats = new Map([['格鬥', { rarity: 'rare', id: 1 }]]);
+  // 1A 格鬥 → 2A 格鬥（撞名，重抽 Tin 落 3B）→ 3B 目標
+  const m = M({ X: [
+    C('1A', '格鬥', 'supa_fest'),
+    C('2A', '格鬥', 'supa_fest', { dupe: { name: 'Tin', rarity: 'rare', to: '3B' } }),
+    C('3B', 'goal', 'uber'),
+  ] });
+  const banners = [{ id: 'X', short: '超國王祭', start: '', end: '', hidden: false, gu: 0 }];
+  const targets = [{ id: 'cell:X|3B', kind: 'cell', name: 'goal', label: '3B goal', accept: new Set(['X|3B']) }];
+  const r = planRoutes({ merged: m, targets, banners, options: { catRarity: cats } });
+  assert.equal(r.feasible, true);
+  assert.equal(r.plans[0].cost.pulls, 3);
+  assert.ok(r.plans[0].steps.some((s) => s.pos === '3B' && s.collected.length));
+});
