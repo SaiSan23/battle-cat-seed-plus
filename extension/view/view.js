@@ -100,7 +100,8 @@ async function fetchBanner(id, useCount, force) {
 }
 
 function currentParams() {
-  const useCount = Math.max(10, Math.min(500, Number(document.querySelector('#count').value) || 100));
+  // 上限對齊 godfat 的 TrackMaxCount=999（root.rb）；下限 10 維持工具自身的合理值
+  const useCount = Math.max(10, Math.min(999, Number(document.querySelector('#count').value) || 100));
   return { useCount };
 }
 
