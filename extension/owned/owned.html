@@ -11,6 +11,14 @@
 
 <div id="controls">
   <input id="search" type="search" placeholder="搜尋貓名（含各型態名）…" aria-label="搜尋貓名">
+  <label class="field">型態
+    <select id="form-sel">
+      <option value="0">基本</option>
+      <option value="1">二階</option>
+      <option value="2">三階</option>
+      <option value="3">四階</option>
+    </select>
+  </label>
   <label class="field"><input id="only-unowned" type="checkbox"> 只看未擁有</label>
   <button id="export" type="button" class="btn-secondary"
     title="換取最新 o 短碼並在 godfat 開啟；該網址可收藏當備份">在 godfat 開啟清單</button>

@@ -15,6 +15,17 @@ const RARITY_ORDER = [
   ['rare', '稀有'], ['special', '特殊'], ['normal', '基本'],
 ];
 
+// 貓咪圖示：BC 資訊網（https://battlecatsinfo.github.io，圖檔編號＝godfat 貓 id − 1）
+// 型態索引 0基本/1二階/2三階/3四階；無該階 404 → onerror 退純文字
+const ICON_BASE = 'https://battlecatsinfo.github.io/img/u';
+const FORM_KEY = 'bcsp:owned-form';
+const iconUrl = (id, fi) => `${ICON_BASE}/${id - 1}/${fi}.png`;
+// 每貓實際顯示階 = min(全域選擇, 該貓最高階)
+function formIndexFor(id) {
+  const n = formsById.get(id)?.length || 1;
+  return Math.min(Number($('#form-sel').value) || 0, n - 1);
+}
+
 let owned = loadOwned();
 let byId = null; // Map id → { name, rarity }（代表名＝目前顯示型態）
 let formsById = new Map(); // id → 有序型態名陣列（搜尋用）
@@ -55,10 +66,14 @@ function renderGroups() {
     for (const [id, { name }] of cats) {
       const li = document.createElement('li');
       li.dataset.id = id;
-      li.dataset.forms = (formsById.get(id) || [name]).join('|');
+      const forms = formsById.get(id) || [name];
+      li.dataset.forms = forms.join('|');
       if (owned.ids.has(id)) li.className = 'owned';
+      const fi = formIndexFor(id);
       li.innerHTML =
-        `<label><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}> <span class="nm" title="${esc(name)}">${esc(name)}</span></label>` +
+        `<label title="${esc(forms.join(' | '))}"><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}>` +
+        ` <img class="icon" loading="lazy" alt="" src="${iconUrl(id, fi)}">` +
+        ` <span class="nm">${esc(forms[fi] || name)}</span></label>` +
         `<a href="${buildCatUrl(id, lang)}" target="_blank" title="在 godfat 查看">🐾</a>`;
       ul.appendChild(li);
     }
@@ -99,6 +114,28 @@ $('#groups').addEventListener('change', (ev) => {
 });
 $('#search').addEventListener('input', applyFilters);
 $('#only-unowned').addEventListener('change', applyFilters);
+
+// 型態切換就地更新，不重繪分組——保留收合與捲動
+function applyForm() {
+  localStorage.setItem(FORM_KEY, $('#form-sel').value);
+  for (const li of document.querySelectorAll('#groups li')) {
+    const id = Number(li.dataset.id);
+    const forms = formsById.get(id);
+    if (!forms) continue;
+    const fi = formIndexFor(id);
+    li.querySelector('.nm').textContent = forms[fi] || forms[0];
+    const img = li.querySelector('img.icon');
+    img.hidden = false; // 換階重試（前一階可能 404 被隱藏）
+    img.src = iconUrl(id, fi);
+  }
+}
+$('#form-sel').addEventListener('change', applyForm);
+try { $('#form-sel').value = localStorage.getItem(FORM_KEY) || '0'; } catch { /* 無 localStorage → 預設 */ }
+
+// 圖 404／外站掛 → 隱藏圖留文字（error 不冒泡，capture 委派）
+$('#groups').addEventListener('error', (ev) => {
+  if (ev.target?.matches?.('img.icon')) ev.target.hidden = true;
+}, true);
 
 // ── 匯入（預覽 → 取代/合併） ──
 let pendingImport = null; // { ids: number[], code: string }
