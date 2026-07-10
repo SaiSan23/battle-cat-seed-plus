@@ -41,3 +41,13 @@ export function serializeCatList(map) {
 export function deserializeCatList(obj) {
   return new Map(Object.entries(obj).map(([name, [rarity, id]]) => [name, { rarity, id }]));
 }
+
+// id → { name, rarity } 反向索引：同 id 有多個型態名，以首見名為代表
+// （parseCatList 對每隻貓先插入連結文字＝目前顯示型態，Map 迭代序保留首見）
+export function catsById(map) {
+  const byId = new Map();
+  for (const [name, { rarity, id }] of map) {
+    if (!byId.has(id)) byId.set(id, { name, rarity });
+  }
+  return byId;
+}

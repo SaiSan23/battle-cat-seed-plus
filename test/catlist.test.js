@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
-import { parseCatList, serializeCatList, deserializeCatList } from '../extension/lib/catlist.js';
+import {
+  parseCatList, serializeCatList, deserializeCatList, catsById,
+} from '../extension/lib/catlist.js';
 
 // fixture: bc.godfat.org/cats?lang=tw（2026-07-08 抓取，六個 .cats_by_rarity 分組）
 const { document } = parseHTML(readFileSync(new URL('./fixtures/cats-tw.html', import.meta.url), 'utf8'));
@@ -32,4 +34,11 @@ test('serialize/deserialize 往返等價', () => {
   const back = deserializeCatList(serializeCatList(map));
   assert.equal(back.size, map.size);
   assert.deepEqual(back.get('貓咪格鬥家'), map.get('貓咪格鬥家'));
+});
+
+test('catsById：id 反向索引、代表名為首見名（目前顯示型態）', () => {
+  const byId = catsById(map);
+  assert.equal(byId.size, 793); // /cats 全部貓數
+  assert.deepEqual(byId.get(1), { name: '貓咪', rarity: 'normal' });
+  assert.equal(byId.get(524).rarity, 'rare');
 });
