@@ -1,4 +1,4 @@
-import { buildEventUrl, buildCatsUrl } from '../lib/godfat.js';
+import { buildEventUrl } from '../lib/godfat.js';
 import { parseRollTable, guaranteedSize } from '../lib/parser.js';
 import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
@@ -6,7 +6,7 @@ import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache, purgeOldCaches } from '../lib/cache.js';
 import { planRoutes } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
-import { parseCatList, serializeCatList, deserializeCatList } from '../lib/catlist.js';
+import { loadCatList } from '../lib/catlist-loader.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -54,32 +54,7 @@ function guFor(id) { return guValues.get(id) ?? ''; }
 // /cats 對照表（貓名→實際稀有度＋id）：每日快取一次；未載入/失敗為 null，
 // 稀有度判定退回 rarity.js 名單法。godfat 底色是固定 score 區間，機率特殊的
 // 卡池（限定池 6470、超國王祭 6770 等）光靠 class 換算必錯，故以此表為準。
-const CATS_KEY = `bcsp:cats:${lang}`;
 let catMap = null;
-async function loadCatList() {
-  const today = new Date().toLocaleDateString('sv');
-  let cached = null;
-  try {
-    const raw = JSON.parse(localStorage.getItem(CATS_KEY) || 'null');
-    if (raw?.names) {
-      cached = deserializeCatList(raw.names);
-      if (raw.date === today) return cached; // 當日已抓過 → 不重抓（禮貌性）
-    }
-  } catch { /* 壞值 → 重抓 */ }
-  try {
-    const res = await fetch(buildCatsUrl(lang));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
-    const map = parseCatList(doc);
-    if (!map.size) return cached; // 結構變動解析不到 → 用過期快取頂著
-    try {
-      localStorage.setItem(CATS_KEY, JSON.stringify({ date: today, names: serializeCatList(map) }));
-    } catch { /* 配額滿 → 只用不存 */ }
-    return map;
-  } catch {
-    return cached; // 離線/失敗 → 過期快取或 null（fallback 名單法）
-  }
-}
 
 function makeEntry(id, name, parsed, cached) {
   const date = bannerDateRange(name);
@@ -768,7 +743,7 @@ if (!seed || eventIds.length === 0) {
   document.querySelector('#progress').textContent = '缺少 seed 或卡池參數。';
 } else {
   // 對照表與卡池並行載入；表先到先用，晚到則補套一次過濾（catMap 就緒前為名單法）
-  loadCatList().then((m) => {
+  loadCatList(lang).then((m) => {
     if (!m) return;
     catMap = m;
     applyFind();
