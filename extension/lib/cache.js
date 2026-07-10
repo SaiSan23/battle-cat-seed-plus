@@ -57,7 +57,7 @@ export function cacheSet(key, { name, count, parsed }) {
 }
 
 // 使用者設定鍵：清快取（手動清除或配額滿自動騰空間）時保留，只清資料快取
-const SETTINGS_KEYS = new Set(['bcsp:gu-force', 'bcsp:route-popup-pos', 'bcsp:owned', 'bcsp:mark-unowned']);
+const SETTINGS_KEYS = new Set(['bcsp:gu-force', 'bcsp:route-popup-pos', 'bcsp:owned', 'bcsp:mark-unowned', 'bcsp:owned-form']);
 
 function clearNamespace(s) {
   const keys = [];

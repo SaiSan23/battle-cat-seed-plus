@@ -917,7 +917,7 @@ if (!seed || eventIds.length === 0) {
   // 對照表與卡池並行載入；表先到先用，晚到則補套一次過濾（catMap 就緒前為名單法）
   loadCatList(lang).then((m) => {
     if (!m) return;
-    catMap = m;
+    catMap = m.catMap;
     applyFind();
     applyOwnedMarks();
     updateAddUnowned();

@@ -17,7 +17,7 @@ const RARITY_ORDER = [
 
 let owned = loadOwned();
 let byId = null; // Map id → { name, rarity }（代表名＝目前顯示型態）
-const formsById = new Map(); // id → 全型態名串（搜尋用）
+let formsById = new Map(); // id → 有序型態名陣列（搜尋用）
 
 function renderStats() {
   const per = new Map(RARITY_ORDER.map(([r]) => [r, { own: 0, all: 0 }]));
@@ -55,7 +55,7 @@ function renderGroups() {
     for (const [id, { name }] of cats) {
       const li = document.createElement('li');
       li.dataset.id = id;
-      li.dataset.forms = formsById.get(id) || name;
+      li.dataset.forms = (formsById.get(id) || [name]).join('|');
       if (owned.ids.has(id)) li.className = 'owned';
       li.innerHTML =
         `<label><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}> <span class="nm" title="${esc(name)}">${esc(name)}</span></label>` +
@@ -159,15 +159,13 @@ $('#export').addEventListener('click', async () => {
 
 (async () => {
   $('#status').textContent = '載入貓咪目錄…';
-  const catMap = await loadCatList(lang);
-  if (!catMap) {
+  const data = await loadCatList(lang);
+  if (!data) {
     $('#status').textContent = '無法取得 /cats 目錄（離線且無快取）；連上網後重新整理即可';
     return;
   }
-  byId = catsById(catMap);
-  for (const [name, { id }] of catMap) {
-    formsById.set(id, formsById.has(id) ? `${formsById.get(id)}|${name}` : name);
-  }
+  byId = catsById(data.catMap);
+  formsById = data.formsById;
   $('#status').textContent = '';
   renderGroups();
   renderStats();

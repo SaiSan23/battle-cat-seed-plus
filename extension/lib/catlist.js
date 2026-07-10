@@ -51,3 +51,26 @@ export function catsById(map) {
   }
   return byId;
 }
+
+// 有序型態名（title 第一行依階段排序；索引＝BC 資訊網圖檔索引：0基本/1二階/2三階/3四階）
+export function parseCatForms(doc) {
+  const forms = new Map();
+  for (const group of doc.querySelectorAll('.cats_by_rarity')) {
+    for (const a of group.querySelectorAll('a[href*="/cats/"]')) {
+      const id = Number((a.getAttribute('href') || '').match(/\/cats\/(\d+)/)?.[1]);
+      if (!id || forms.has(id)) continue;
+      const list = (a.getAttribute('title') || '').split('\n')[0]
+        .replace(/\*/g, '').split('|').map((s) => s.trim()).filter(Boolean);
+      if (list.length) forms.set(id, list);
+    }
+  }
+  return forms;
+}
+
+export function serializeForms(map) {
+  return Object.fromEntries(map);
+}
+
+export function deserializeForms(obj) {
+  return new Map(Object.entries(obj || {}).map(([id, list]) => [Number(id), list]));
+}

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 import {
   parseCatList, serializeCatList, deserializeCatList, catsById,
+  parseCatForms, serializeForms, deserializeForms,
 } from '../extension/lib/catlist.js';
 
 // fixture: bc.godfat.org/cats?lang=tw（2026-07-08 抓取，六個 .cats_by_rarity 分組）
@@ -41,4 +42,19 @@ test('catsById：id 反向索引、代表名為首見名（目前顯示型態）
   assert.equal(byId.size, 793); // /cats 全部貓數
   assert.deepEqual(byId.get(1), { name: '貓咪', rarity: 'normal' });
   assert.equal(byId.get(524).rarity, 'rare');
+});
+
+test('parseCatForms：有序型態名（title 第一行序＝階段序＝圖檔序）', () => {
+  const forms = parseCatForms(document);
+  assert.deepEqual(forms.get(1), ['貓咪', '健美貓', '摩西根貓']);
+  assert.deepEqual(forms.get(817), ['817-1']); // 佔位名貓單元素
+  assert.equal(forms.get(449).length, 3); // 宮本武藏三階（與圖檔 0–2 對齊）
+  assert.equal(forms.size, 793);
+});
+
+test('serializeForms/deserializeForms 往返等價（鍵回 number）', () => {
+  const forms = parseCatForms(document);
+  const back = deserializeForms(JSON.parse(JSON.stringify(serializeForms(forms))));
+  assert.equal(back.size, forms.size);
+  assert.deepEqual(back.get(1), forms.get(1));
 });

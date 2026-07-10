@@ -34,6 +34,7 @@ test('clearCache 清資料快取但保留使用者設定鍵', async () => {
     ['bcsp:gu-force', '{"e":"11"}'],
     ['bcsp:route-popup-pos', '{"left":8,"top":8}'],
     ['bcsp:owned', '{"ids":[1]}'],
+    ['bcsp:owned-form', '"2"'],
     ['unrelated', 'x'],
   ]);
   globalThis.localStorage = {
@@ -46,7 +47,7 @@ test('clearCache 清資料快取但保留使用者設定鍵', async () => {
   try {
     const { clearCache } = await import('../extension/lib/cache.js');
     assert.equal(clearCache(), true);
-    assert.deepEqual([...store.keys()].sort(), ['bcsp:gu-force', 'bcsp:owned', 'bcsp:route-popup-pos', 'unrelated']);
+    assert.deepEqual([...store.keys()].sort(), ['bcsp:gu-force', 'bcsp:owned', 'bcsp:owned-form', 'bcsp:route-popup-pos', 'unrelated']);
   } finally {
     delete globalThis.localStorage;
   }
