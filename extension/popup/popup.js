@@ -71,7 +71,7 @@ $('#load').addEventListener('click', () => {
 
 document.querySelector('#owned-link').addEventListener('click', (ev) => {
   ev.preventDefault();
-  chrome.tabs.create({ url: chrome.runtime.getURL('owned/owned.html') });
+  chrome.tabs.create({ url: chrome.runtime.getURL('owned/owned.html') + `?lang=${encodeURIComponent(SEED?.lang ?? 'tw')}` });
 });
 
 (async () => {

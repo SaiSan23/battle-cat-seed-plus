@@ -74,3 +74,7 @@ body {
 }
 #load:hover { background: var(--accent-strong); }
 #load:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-weak); }
+
+#owned-link { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted); text-decoration: none; }
+#owned-link:hover { color: var(--accent); text-decoration: underline; }
+#owned-link:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-weak); border-radius: 3px; }
