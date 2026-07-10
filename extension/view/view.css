@@ -56,6 +56,7 @@
   --r-legend: darkviolet;
   --stripe-rare: #cfcfcf;
   --stripe-exclusive: #00bcd4;
+  --unowned: #0ca678;
 }
 
 /* 深色模式：只覆寫變數值，規則本體不重複。
@@ -112,6 +113,7 @@
     --r-legend: #7326ad;
     --stripe-rare: #6b7280;
     --stripe-exclusive: #22b8cf;
+    --unowned: #38d9a9;
   }
 }
 
@@ -403,6 +405,21 @@ tbody td.path-target { box-shadow: inset 0 0 0 3px var(--target); }
 tbody td.path-switch::after { content: '↹'; position: absolute; top: 0; right: 1px; color: var(--route); font-size: 11px; }
 tbody td.path-ticket { outline: 2px dashed var(--ticket); outline-offset: -2px; }
 tbody td.path-gu { outline: 3px double var(--gu); outline-offset: -3px; }
+
+/* 未擁有角標：小圓點，不動 godfat 底色；換軌步的 ↹ 共用 ::after，路線顯示優先 */
+#grid td.unowned { position: relative; }
+#grid td.unowned:not(.path-switch)::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--unowned);
+  box-shadow: 0 0 0 1px var(--surface);
+}
+#legend-pop i.unowned-dot { background: var(--unowned); border-radius: 50%; }
 
 /* 格子選單 */
 #cell-menu { position: fixed; z-index: 30; display: flex; flex-direction: column; min-width: 190px;

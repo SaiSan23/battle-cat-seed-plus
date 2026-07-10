@@ -7,6 +7,7 @@ import { cacheKey, cacheGet, cacheSet, clearCache, purgeOldCaches } from '../lib
 import { planRoutes } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
 import { loadCatList } from '../lib/catlist-loader.js';
+import { loadOwned, saveOwned } from '../lib/owned.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -48,6 +49,33 @@ function guFor(id) { return guValues.get(id) ?? ''; }
   if (fev && GU_SIZES.includes(fsize) && eventIds.includes(fev) && !guValues.has(fev)) {
     guValues.set(fev, fsize);
     saveGu();
+  }
+}
+
+// 擁有清單（bcsp:owned，使用者資料）：未擁有標示、格子選單標記、godfat 連結帶 o 共用
+const MARK_KEY = 'bcsp:mark-unowned';
+let ownedData = loadOwned();
+document.querySelector('#owned-page').href = `../owned/owned.html?lang=${encodeURIComponent(lang)}`;
+const markCb = document.querySelector('#mark-unowned');
+markCb.checked = localStorage.getItem(MARK_KEY) === '1';
+markCb.addEventListener('change', () => {
+  localStorage.setItem(MARK_KEY, markCb.checked ? '1' : '0');
+  applyOwnedMarks();
+});
+// 清單頁在別分頁改了清單 → 同步重套（storage 事件跨分頁同源觸發）
+window.addEventListener('storage', (ev) => {
+  if (ev.key === 'bcsp:owned') { ownedData = loadOwned(); applyOwnedMarks(); }
+});
+
+function catIdOf(name) { return catMap?.get(name)?.id ?? null; }
+
+// 未擁有標示：渲染後補套 class（同 applyFind 模式）——不動 cellHtml，catMap 晚到也能補
+function applyOwnedMarks() {
+  const on = markCb.checked && !!catMap && ownedData.ids.size > 0;
+  document.querySelector('#owned-empty-hint').hidden = !(markCb.checked && ownedData.ids.size === 0);
+  for (const td of document.querySelectorAll('#grid tbody td[data-n]')) {
+    const id = catIdOf(td.getAttribute('data-n'));
+    td.classList.toggle('unowned', on && id != null && !ownedData.ids.has(id));
   }
 }
 
@@ -200,6 +228,7 @@ function renderTable(entries) {
   out.push(`<tbody>${body.join('')}</tbody>`);
   table.innerHTML = out.join('');
   applyFind(); // 重新渲染後重套高亮
+  applyOwnedMarks();
   if (selectedPlan) showPlanPath(selectedPlan); // 路線高亮同樣重套（B 軌開關/卡池顯隱後不消失）
 }
 
@@ -468,9 +497,14 @@ function openCellMenu(td, x, y) {
   menuCtx = { bid: td.getAttribute('data-bid'), pos: td.getAttribute('data-pos'), name: td.getAttribute('data-n') };
   const hasCell = routeTargets.has(`cell:${menuCtx.bid}|${menuCtx.pos}`);
   const hasCat = routeTargets.has(`cat:${menuCtx.name}`);
+  const cid = catIdOf(menuCtx.name);
+  const ownBtn = cid == null
+    ? '<button data-act="own" disabled title="目錄查無此貓（離線或目錄未更新），暫無法標記">標記為已擁有</button>'
+    : `<button data-act="own">${ownedData.ids.has(cid) ? '取消已擁有標記' : '標記為已擁有'}</button>`;
   cellMenu.innerHTML =
     `<button data-act="cell">${hasCell ? '移除此位置目標' : '加入此位置目標'}</button>` +
     `<button data-act="cat">${hasCat ? '移除此貓目標' : '加入此貓目標（所有出現）'}</button>` +
+    ownBtn +
     `<button data-act="find">搜尋此貓</button>` +
     `<button data-act="copy">複製貓咪名稱</button>`;
   cellMenu.hidden = false;
@@ -492,6 +526,16 @@ cellMenu.addEventListener('click', (ev) => {
     applyFind();
     document.querySelector('#find-popup').classList.remove('collapsed'); // 展開結果抽屜
     updateFindToggle();
+  }
+  else if (act === 'own') {
+    const cid = catIdOf(name);
+    if (cid != null) {
+      if (ownedData.ids.has(cid)) ownedData.ids.delete(cid);
+      else ownedData.ids.add(cid);
+      ownedData.oDirty = true; // 短碼過期，要用時再換
+      saveOwned(ownedData);
+      applyOwnedMarks();
+    }
   }
   else if (act === 'copy') navigator.clipboard?.writeText(name).catch(() => {});
   closeCellMenu();
@@ -747,6 +791,7 @@ if (!seed || eventIds.length === 0) {
     if (!m) return;
     catMap = m;
     applyFind();
+    applyOwnedMarks();
   });
   load();
 }
