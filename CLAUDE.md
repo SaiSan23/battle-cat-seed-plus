@@ -36,4 +36,5 @@
 
 - `extension/lib/`：純函式（parser / merge / cache / godfat URL），皆有對應 `test/*.test.js`。
 - `extension/view/`：比較頁（無 chrome.* API 的純網頁，靠 query string 帶參數、localStorage 快取）。
+- `extension/owned/`：擁有清單頁（純網頁，與 view 同源共用 localStorage；資料鍵 `bcsp:owned` 屬使用者設定、清快取不清）。o 短碼＝godfat 伺服器端編碼：解碼靠解析 `/cats?o=…` 的 checked、編碼靠 `?t=id…` 讓 godfat 302 轉出。
 - 重抽格（R 字尾 pick id）是**條件性**結果：僅在「以重複狀態抵達」時觸發；主格顯示天然結果，重抽降為附註。
