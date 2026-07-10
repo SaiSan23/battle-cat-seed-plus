@@ -67,6 +67,11 @@ $('#load').addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('view/view.html') + '?' + params });
 });
 
+document.querySelector('#owned-link').addEventListener('click', (ev) => {
+  ev.preventDefault();
+  chrome.tabs.create({ url: chrome.runtime.getURL('owned/owned.html') });
+});
+
 (async () => {
   const ctx = await getContext();
   if (!ctx.seedParams) {

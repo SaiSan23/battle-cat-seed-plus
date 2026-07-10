@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>擁有貓咪清單</title>
+<link rel="stylesheet" href="owned.css">
+
+<header id="topbar">
+  <h1>擁有貓咪清單</h1>
+  <span id="stats" class="badge"></span>
+</header>
+
+<div id="controls">
+  <input id="search" type="search" placeholder="搜尋貓名（含各型態名）…" aria-label="搜尋貓名">
+  <label class="field"><input id="only-unowned" type="checkbox"> 只看未擁有</label>
+  <button id="export" type="button" class="btn-secondary"
+    title="換取最新 o 短碼並在 godfat 開啟；該網址可收藏當備份">在 godfat 開啟清單</button>
+</div>
+
+<div id="import-box">
+  <input id="import-input" type="text" placeholder="貼上含 o= 的 godfat 網址（或裸短碼）…">
+  <button id="import-preview" type="button" class="btn-secondary">匯入…</button>
+  <span id="import-result"></span>
+</div>
+
+<div id="status"></div>
+<div id="groups"></div>
+
+<script type="module" src="owned.js"></script>

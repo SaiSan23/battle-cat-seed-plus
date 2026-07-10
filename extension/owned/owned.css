@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --surface: #fff;
+  --border: #e4e7ec;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #3b5bdb;
+  --r: 8px;
+  --rc: 6px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  --btn-hover: #f3f4f6;
+  --input-bg: #fff;
+  --badge-border: #d6def9;
+  --danger-fg: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --surface: #1e2128;
+    --border: #32363f;
+    --text: #e5e7eb;
+    --muted: #9aa1ac;
+    --accent: #748ffc;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    --btn-hover: #2a2e37;
+    --input-bg: #16181d;
+    --badge-border: #3a4152;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
+#topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+#topbar h1 { font-size: 16px; margin: 0; }
+.badge { font-size: 12px; color: var(--muted); border: 1px solid var(--badge-border); border-radius: var(--rc); padding: 2px 8px; background: var(--surface); }
+#controls, #import-box { display: flex; align-items: center; gap: 10px; padding: 0 14px 10px; flex-wrap: wrap; }
+#search, #import-input { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--rc); background: var(--input-bg); color: var(--text); }
+#import-input { min-width: 320px; }
+button { padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--rc); background: var(--surface); color: var(--text); cursor: pointer; }
+button:hover { background: var(--btn-hover); }
+#status { padding: 0 14px 6px; color: var(--danger-fg); }
+#import-result { color: var(--muted); }
+#groups { padding: 0 14px 20px; }
+#groups details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); margin-bottom: 10px; }
+#groups summary { cursor: pointer; padding: 8px 12px; font-weight: 600; }
+#groups ul { list-style: none; margin: 0; padding: 4px 12px 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
+#groups li { display: flex; align-items: center; gap: 4px; }
+#groups li a { text-decoration: none; opacity: .6; }
+#groups label { cursor: pointer; }
