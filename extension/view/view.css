@@ -429,6 +429,31 @@ tbody td.path-gu { outline: 3px double var(--gu); outline-offset: -3px; }
   border-radius: 4px; cursor: pointer; color: var(--text); white-space: nowrap; }
 #cell-menu button:hover { background: var(--accent-weak); color: var(--accent); }
 
+/* 批次目標選擇面板：置中浮層 */
+#unowned-pick {
+  position: fixed;
+  inset: 10vh auto auto 50%;
+  transform: translateX(-50%);
+  width: min(560px, 92vw);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  z-index: 30;
+}
+#unowned-pick[hidden] { display: none; }
+#unowned-pick-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+#unowned-pick-body { overflow: auto; padding: 8px 12px; }
+#unowned-pick-foot { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 8px 12px; border-top: 1px solid var(--border); }
+#up-count { margin-right: auto; font-size: 11px; color: var(--muted); }
+#up-count.up-over { color: var(--danger-fg); font-weight: 600; }
+.up-group { margin-bottom: 8px; }
+.up-head { font-weight: 600; margin-bottom: 2px; }
+.up-group label { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 2px 0; cursor: pointer; }
+
 /* 外開圖示 */
 a.gf { color: var(--accent); margin-left: 6px; display: inline-flex; vertical-align: middle; opacity: .65; }
 a.gf:hover { opacity: 1; }

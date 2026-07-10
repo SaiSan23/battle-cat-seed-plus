@@ -1,6 +1,8 @@
 // 從 1A 規劃收齊目標貓的抽卡路線（純函式，不自算種子）
 import { actualRarity } from './rarity.js';
 
+export const MAX_TARGETS = 12; // planRoutes 目標數上限（組合爆炸防護）
+
 export const UNCERTAIN = ' UNCERTAIN';
 const SPECIAL = { '白金': 'plat', '黑金': 'legend' };
 
@@ -205,7 +207,7 @@ function selectPlans(candidates, full, targets, maxPos, bannerById, today) {
 export function planRoutes({ merged, targets, banners, options = {} }) {
   const T = targets.length;
   if (T === 0) return { feasible: true, plans: [], unreachable: [] };
-  const maxTargets = options.maxTargets ?? 12;
+  const maxTargets = options.maxTargets ?? MAX_TARGETS;
   if (T > maxTargets) throw new Error(`目標數 ${T} 超過上限 ${maxTargets}`);
   const nums = merged.numbers || [];
   const maxPos = options.maxPos ?? (nums.length ? nums[nums.length - 1] : 0);

@@ -4,7 +4,7 @@ import { mergeBanners } from '../lib/merge.js';
 import { mapWithLimit } from '../lib/concurrency.js';
 import { shortBannerName, bannerDateRange } from '../lib/banner-names.js';
 import { cacheKey, cacheGet, cacheSet, clearCache, purgeOldCaches } from '../lib/cache.js';
-import { planRoutes } from '../lib/route.js';
+import { planRoutes, MAX_TARGETS } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
 import { loadCatList } from '../lib/catlist-loader.js';
 import { loadOwned, saveOwned, fetchOCode } from '../lib/owned.js';
@@ -64,7 +64,7 @@ markCb.addEventListener('change', () => {
 });
 // 清單頁在別分頁改了清單 → 同步重套（storage 事件跨分頁同源觸發）
 window.addEventListener('storage', (ev) => {
-  if (ev.key === 'bcsp:owned') { ownedData = loadOwned(); applyOwnedMarks(); }
+  if (ev.key === 'bcsp:owned') { ownedData = loadOwned(); applyOwnedMarks(); updateAddUnowned(); }
 });
 
 function catIdOf(name) { return catMap?.get(name)?.id ?? null; }
@@ -439,6 +439,7 @@ async function load() {
   currentEntries = entries;
   renderToggles(entries);
   renderTable(entries);
+  updateAddUnowned();
   // 進度為載入指示，完成後收起（錯誤另在 #errors 顯示）
   document.querySelector('#progress-list').innerHTML = '';
   document.querySelector('#progress-bar').hidden = true;
@@ -468,6 +469,74 @@ function addFindAsTargets() {
   }
   renderTargetChips();
   renderTable(currentEntries);
+}
+
+// ── 批次目標：表內出現且未擁有的貓 ──────────────────────────
+const RARITY_SEQ = ['legend', 'uber', 'supa', 'rare', 'special', 'normal'];
+const RARITY_LABEL = { legend: '傳說', uber: '超激', supa: '激稀有', rare: '稀有', special: '特殊', normal: '基本' };
+
+// 只看未隱藏卡池、顯示抽數視野內；主格與重抽附註的貓名皆算「出現」；目錄查無者不列、另計數
+function collectUnownedInTable() {
+  const seen = new Set();
+  const groups = new Map(); // rarity -> [name]
+  let unknown = 0;
+  const merged = mergeBanners(currentEntries.filter((e) => !hidden.has(e.banner.id)));
+  const { useCount } = currentParams();
+  for (const [pos, byBanner] of merged.byPos) {
+    if (parseInt(pos, 10) > useCount) continue; // 快取可能大於顯示抽數 → 與畫面視野一致
+    for (const c of byBanner.values()) {
+      for (const name of [c.name, c.dupe?.name]) {
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        const hit = catMap?.get(name);
+        if (!hit) { unknown++; continue; }
+        if (ownedData.ids.has(hit.id)) continue;
+        if (!groups.has(hit.rarity)) groups.set(hit.rarity, []);
+        groups.get(hit.rarity).push(name);
+      }
+    }
+  }
+  return { groups, unknown };
+}
+
+function openUnownedPick() {
+  const { groups, unknown } = collectUnownedInTable();
+  const parts = [];
+  for (const r of RARITY_SEQ) {
+    const names = (groups.get(r) || []).sort();
+    if (!names.length) continue;
+    parts.push(
+      `<div class="up-group"><div class="up-head">${RARITY_LABEL[r]}（${names.length}）</div>` +
+        names.map((n) => `<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join('') +
+        '</div>'
+    );
+  }
+  if (!parts.length) parts.push('<p class="empty">表內沒有未擁有的貓</p>');
+  if (unknown) parts.push(`<p class="hint">另有 ${unknown} 名查無 /cats 目錄、無法判定，未列入</p>`);
+  document.querySelector('#unowned-pick-body').innerHTML = parts.join('');
+  document.querySelector('#unowned-pick').hidden = false;
+  updateUpCount();
+}
+
+// 選取計數與上限防呆：合計＝既有目標＋本次新增（已是目標者勾了也不重複計）
+function updateUpCount() {
+  let fresh = 0;
+  for (const cb of document.querySelectorAll('#unowned-pick-body input:checked')) {
+    if (!routeTargets.has(`cat:${cb.value}`)) fresh++;
+  }
+  const total = routeTargets.size + fresh;
+  const over = total > MAX_TARGETS;
+  const el = document.querySelector('#up-count');
+  el.textContent = `將加入 ${fresh}，合計 ${total}／上限 ${MAX_TARGETS}`;
+  el.classList.toggle('up-over', over);
+  document.querySelector('#up-add').disabled = over || fresh === 0;
+}
+
+// 啟用條件：目錄與卡池已載入、清單非空（空清單＝全部未擁有，列出無意義）
+function updateAddUnowned() {
+  const btn = document.querySelector('#add-unowned');
+  btn.disabled = !catMap || !currentEntries.length || !ownedData.ids.size;
+  btn.title = !ownedData.ids.size ? '先到「擁有清單」建立清單' : '列出表內未擁有的貓，勾選後批量加入目標';
 }
 function renderTargetChips() {
   const box = document.querySelector('#route-targets');
@@ -538,6 +607,7 @@ cellMenu.addEventListener('click', (ev) => {
       ownedData.oDirty = true; // 短碼過期，要用時再換
       saveOwned(ownedData);
       applyOwnedMarks();
+      updateAddUnowned();
     }
   }
   else if (act === 'copy') navigator.clipboard?.writeText(name).catch(() => {});
@@ -692,6 +762,27 @@ document.querySelector('#find-add-targets').addEventListener('click', (ev) => {
   addFindAsTargets();
 });
 document.querySelector('#plan-route').addEventListener('click', runPlan);
+document.querySelector('#add-unowned').addEventListener('click', openUnownedPick);
+document.querySelector('#up-close').addEventListener('click', () => { document.querySelector('#unowned-pick').hidden = true; });
+document.querySelector('#unowned-pick-body').addEventListener('change', updateUpCount);
+document.querySelector('#up-all').addEventListener('click', () => {
+  for (const cb of document.querySelectorAll('#unowned-pick-body input')) cb.checked = true;
+  updateUpCount();
+});
+document.querySelector('#up-none').addEventListener('click', () => {
+  for (const cb of document.querySelectorAll('#unowned-pick-body input')) cb.checked = false;
+  updateUpCount();
+});
+document.querySelector('#up-add').addEventListener('click', () => {
+  for (const cb of document.querySelectorAll('#unowned-pick-body input:checked')) {
+    const name = cb.value;
+    const id = `cat:${name}`;
+    if (!routeTargets.has(id)) routeTargets.set(id, { id, kind: 'cat', name, label: name, accept: catAccept(name) });
+  }
+  document.querySelector('#unowned-pick').hidden = true;
+  renderTargetChips();
+  renderTable(currentEntries);
+});
 document.querySelector('#route-close').addEventListener('click', () => {
   document.querySelector('#route-popup').hidden = true;
   showPlanPath(null); // 清高亮並取消重繪時的重套
@@ -829,6 +920,7 @@ if (!seed || eventIds.length === 0) {
     catMap = m;
     applyFind();
     applyOwnedMarks();
+    updateAddUnowned();
   });
   load();
 }

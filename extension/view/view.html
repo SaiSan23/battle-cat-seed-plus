@@ -64,6 +64,7 @@
   <div id="banner-toggles"></div>
   <div id="route-area">
     <div id="route-targets" class="chips"></div>
+    <button id="add-unowned" type="button" class="btn-secondary" disabled>未擁有目標…</button>
     <button id="plan-route" type="button" class="btn-secondary" disabled>規劃路線</button>
     <span id="route-hint" class="hint">點格子開選單加入目標；或用下方 Find 搜貓名後「加入命中」</span>
   </div>
@@ -92,6 +93,19 @@
     <span class="pl"><i class="pl-target"></i>目標</span>
   </div>
   <div id="route-body"></div>
+</div>
+<div id="unowned-pick" hidden>
+  <div id="unowned-pick-head">
+    <span class="find-title">表內未擁有的貓</span>
+    <button id="up-close" type="button" title="關閉">×</button>
+  </div>
+  <div id="unowned-pick-body"></div>
+  <div id="unowned-pick-foot">
+    <span id="up-count" class="hint"></span>
+    <button id="up-all" type="button" class="btn-secondary">全選</button>
+    <button id="up-none" type="button" class="btn-secondary">全不選</button>
+    <button id="up-add" type="button">加入目標</button>
+  </div>
 </div>
 <div id="cell-menu" hidden></div>
 <div id="table-wrap"><table id="grid"></table></div>
