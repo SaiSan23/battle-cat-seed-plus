@@ -29,6 +29,8 @@
   }
 }
 * { box-sizing: border-box; }
+/* display:flex 等會蓋過 hidden 屬性的 UA 樣式，一律以屬性選擇器強制隱藏（同 view.css） */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
 #topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
 #topbar h1 { font-size: 16px; margin: 0; }
