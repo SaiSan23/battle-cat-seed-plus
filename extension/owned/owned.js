@@ -108,7 +108,7 @@ function applyFilters() {
 {
   const rf = $('#rarity-filter');
   rf.innerHTML = '<button type="button" class="on" data-r="">全部</button>' +
-    RARITY_ORDER.map(([r, label]) => `<button type="button" data-r="${r}">${label}</button>`).join('');
+    RARITY_ORDER.map(([r, label]) => `<button type="button" data-r="${r}" class="g-${r}">${label}</button>`).join('');
   rf.addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-r]');
     if (!btn) return;

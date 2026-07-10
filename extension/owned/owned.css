@@ -69,6 +69,12 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 syst
 #controls, #import-box { display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; flex-wrap: wrap; }
 .field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .field input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.field select {
+  font: inherit; height: 30px; padding: 4px 6px; color: var(--text);
+  background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--rc);
+}
+/* 「在 godfat 開啟清單」是動作不是篩選：推到右側與篩選群分開 */
+#export { margin-left: auto; }
 #search, #import-input {
   font: inherit; height: 30px; padding: 5px 8px; color: var(--text);
   background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--rc);
@@ -81,12 +87,19 @@ button, .btn-secondary {
   color: var(--text); background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--rc);
 }
 button:hover { background: var(--btn-hover); }
-input:focus-visible, button:focus-visible, summary:focus-visible {
+input:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
 #rarity-filter { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 10px; }
-#rarity-filter button { height: 26px; padding: 0 10px; font-size: 12px; border-radius: 999px; color: var(--muted); }
+#rarity-filter button {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px; font-size: 12px; border-radius: 999px; color: var(--muted);
+}
+/* 稀有度 chip 沿用分組標題的色點語言（.g-* 帶 --gc；「全部」無色點） */
+#rarity-filter button[class*="g-"]::before {
+  content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--gc); flex: none;
+}
 #rarity-filter button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
 
 #status { padding: 0 16px 6px; color: var(--danger-fg); min-height: 1.2em; }
