@@ -74,6 +74,33 @@ export function extractOCode(input) {
   return null;
 }
 
+// 備份檔（JSON）序列化：離線備份格式，不依賴 godfat；kind 標記供匯入驗明正身
+export function serializeBackup({ ids, oCode = null, updated = null }) {
+  return JSON.stringify({
+    app: 'battle-cat-seed-plus',
+    kind: 'owned-backup',
+    version: 1,
+    exported: new Date().toLocaleDateString('sv'),
+    updated,
+    oCode,
+    ids: [...ids].sort((a, b) => a - b),
+  }, null, 1);
+}
+
+// 備份檔解析：格式不符/壞 JSON/空清單 → null；id 去重、去非正整數
+export function parseBackup(text) {
+  try {
+    const obj = JSON.parse(text);
+    if (obj?.kind !== 'owned-backup' || !Array.isArray(obj.ids)) return null;
+    const ids = [...new Set(obj.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+      .sort((a, b) => a - b);
+    if (!ids.length) return null;
+    return { ids, oCode: typeof obj.oCode === 'string' && obj.oCode ? obj.oCode : null };
+  } catch {
+    return null;
+  }
+}
+
 // 換碼：把 id 清單交給 godfat（302 → res.url 帶新 o 短碼）。失敗回 null，呼叫端退回不帶 o。
 export async function fetchOCode(ids, lang, fetchFn = globalThis.fetch) {
   try {

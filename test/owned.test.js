@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 import {
   loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode,
+  serializeBackup, parseBackup,
 } from '../extension/lib/owned.js';
 
 // fixture: bc.godfat.org/cats?lang=tw&o=4ZIEPP2m（2026-07-09 抓取，貓 1/2/44 已勾）
@@ -31,6 +32,18 @@ test('fetchOCode：從轉址後的 res.url 取回新短碼；失敗回 null', as
   assert.equal(await fetchOCode([], 'tw', noO), null);
   const boom = async () => { throw new Error('offline'); };
   assert.equal(await fetchOCode([1], 'tw', boom), null);
+});
+
+test('serializeBackup/parseBackup：往返一致、驗格式標記、壞檔/空清單回 null', () => {
+  const back = parseBackup(serializeBackup({ ids: new Set([44, 1]), oCode: 'abc', updated: '2026-07-10' }));
+  assert.deepEqual(back, { ids: [1, 44], oCode: 'abc' }); // 升冪
+  const noCode = parseBackup(serializeBackup({ ids: new Set([2]) }));
+  assert.deepEqual(noCode, { ids: [2], oCode: null });
+  assert.equal(parseBackup('{broken'), null);
+  assert.equal(parseBackup('{"ids":[1,2]}'), null); // 缺 kind 標記＝非本擴充備份
+  assert.equal(parseBackup(JSON.stringify({ kind: 'owned-backup', ids: [] })), null); // 空清單
+  const dirty = parseBackup(JSON.stringify({ kind: 'owned-backup', ids: [3, '2', 2, 0, -1, 'x'] }));
+  assert.deepEqual(dirty, { ids: [2, 3], oCode: null }); // 去重、去非正整數
 });
 
 test('loadOwned/saveOwned：往返一致、無資料/壞值回空清單', async () => {

@@ -42,6 +42,10 @@
 <div id="import-box">
   <input id="import-input" type="text" placeholder="貼上含 o= 的 godfat 網址（或裸短碼）…">
   <button id="import-preview" type="button" class="btn-secondary">匯入…</button>
+  <button id="bk-export" type="button" class="btn-secondary"
+    title="下載 JSON 備份檔到電腦（不經 godfat，離線可還原）">匯出備份檔</button>
+  <button id="bk-import" type="button" class="btn-secondary">匯入備份檔…</button>
+  <input id="bk-file" type="file" accept="application/json,.json" hidden>
   <span id="import-result"></span>
 </div>
 

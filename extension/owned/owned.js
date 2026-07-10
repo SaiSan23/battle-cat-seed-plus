@@ -2,7 +2,10 @@
 // 勾選即存（oDirty，換碼延後到要用時）；篩選列（稀有度／擁有／召喚）僅影響顯示，不影響統計。
 import { loadCatList } from '../lib/catlist-loader.js';
 import { catsById } from '../lib/catlist.js';
-import { loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode } from '../lib/owned.js';
+import {
+  loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode,
+  serializeBackup, parseBackup,
+} from '../lib/owned.js';
 import { buildCatsUrl, buildCatUrl } from '../lib/godfat.js';
 
 const qp = new URLSearchParams(location.search);
@@ -173,8 +176,14 @@ $('#groups').addEventListener('error', (ev) => {
   }
 }, true);
 
-// ── 匯入（預覽 → 取代/合併） ──
-let pendingImport = null; // { ids: number[], code: string }
+// ── 匯入（預覽 → 取代/合併）：o 短碼與備份檔共用同一套確認流程 ──
+let pendingImport = null; // { ids: number[], code: string|null }
+function showImportPreview(srcLabel) {
+  $('#import-result').innerHTML =
+    `${srcLabel}共 ${pendingImport.ids.length} 隻 → ` +
+    `<button id="imp-replace" type="button">取代現有清單</button> ` +
+    `<button id="imp-merge" type="button">合併進現有清單</button>`;
+}
 $('#import-preview').addEventListener('click', async () => {
   const code = extractOCode($('#import-input').value);
   const out = $('#import-result');
@@ -188,10 +197,7 @@ $('#import-preview').addEventListener('click', async () => {
     const ids = parseOwnedFromCatsDoc(doc);
     if (!ids.length) { out.textContent = '此短碼沒有勾選任何貓'; return; }
     pendingImport = { ids, code };
-    out.innerHTML =
-      `共 ${ids.length} 隻 → ` +
-      `<button id="imp-replace" type="button">取代現有清單</button> ` +
-      `<button id="imp-merge" type="button">合併進現有清單</button>`;
+    showImportPreview('');
   } catch {
     out.textContent = '讀取失敗（離線或 godfat 無回應）';
   }
@@ -212,6 +218,27 @@ $('#import-result').addEventListener('click', (ev) => {
   $('#import-result').textContent = `已匯入，現有 ${owned.ids.size} 隻`;
   renderGroups();
   renderStats();
+});
+
+// ── 檔案備份：下載/讀取 JSON（不依賴 godfat，離線可還原） ──
+$('#bk-export').addEventListener('click', () => {
+  if (!owned.ids.size) { $('#status').textContent = '清單是空的，先勾幾隻吧'; return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([serializeBackup(owned)], { type: 'application/json' }));
+  a.download = `battle-cat-seed-owned-${new Date().toLocaleDateString('sv')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('#bk-import').addEventListener('click', () => $('#bk-file').click());
+$('#bk-file').addEventListener('change', async () => {
+  const f = $('#bk-file').files[0];
+  $('#bk-file').value = ''; // 允許重選同一檔
+  if (!f) return;
+  const bak = parseBackup(await f.text());
+  pendingImport = null;
+  if (!bak) { $('#import-result').textContent = '不是本擴充的備份檔（JSON 格式不符）'; return; }
+  pendingImport = { ids: bak.ids, code: bak.oCode };
+  showImportPreview('備份檔');
 });
 
 // ── 匯出：確保短碼最新後在 godfat 開啟 ──
