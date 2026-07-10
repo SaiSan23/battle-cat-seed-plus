@@ -116,10 +116,10 @@ $('#import-result').addEventListener('click', (ev) => {
   if (!pendingImport || (act !== 'imp-replace' && act !== 'imp-merge')) return;
   if (act === 'imp-replace') {
     // 取代：內容＝匯入來源，短碼直接沿用（乾淨，不需換碼）
-    owned = { ids: new Set(pendingImport.ids), oCode: pendingImport.code, oDirty: false, updated: owned.updated };
+    owned = { ids: new Set(pendingImport.ids), oCode: pendingImport.code, oDirty: false };
   } else {
     // 合併：內容可能超出來源短碼 → 標 dirty 待換碼
-    owned = { ids: new Set([...owned.ids, ...pendingImport.ids]), oCode: owned.oCode, oDirty: true, updated: owned.updated };
+    owned = { ids: new Set([...owned.ids, ...pendingImport.ids]), oCode: owned.oCode, oDirty: true };
   }
   saveOwned(owned);
   pendingImport = null;

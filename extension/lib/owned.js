@@ -29,11 +29,17 @@ export function loadOwned() {
   }
 }
 
-// 寫入清單；配額滿時清資料快取（設定鍵不受影響）騰空間再試一次
-export function saveOwned({ ids, oCode = null, oDirty = false, updated = new Date().toLocaleDateString('sv') }) {
+// 寫入清單；updated＝最後異動日，每次存檔一律蓋當日（呼叫端不需帶）。
+// 配額滿時清資料快取（設定鍵不受影響）騰空間再試一次
+export function saveOwned({ ids, oCode = null, oDirty = false }) {
   const s = store();
   if (!s) return false;
-  const payload = JSON.stringify({ ids: [...ids].sort((a, b) => a - b), oCode, oDirty, updated });
+  const payload = JSON.stringify({
+    ids: [...ids].sort((a, b) => a - b),
+    oCode,
+    oDirty,
+    updated: new Date().toLocaleDateString('sv'), // sv 地區格式即 YYYY-MM-DD（本地時區）
+  });
   try {
     s.setItem(OWNED_KEY, payload);
     return true;

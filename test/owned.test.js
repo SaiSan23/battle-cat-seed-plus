@@ -44,12 +44,12 @@ test('loadOwned/saveOwned：往返一致、無資料/壞值回空清單', async 
   };
   try {
     assert.deepEqual(loadOwned(), { ids: new Set(), oCode: null, oDirty: false, updated: null });
-    assert.equal(saveOwned({ ids: new Set([44, 1]), oCode: 'abc', oDirty: true, updated: '2026-07-09' }), true);
+    assert.equal(saveOwned({ ids: new Set([44, 1]), oCode: 'abc', oDirty: true }), true);
     const back = loadOwned();
     assert.deepEqual([...back.ids], [1, 44]); // 存檔升冪
     assert.equal(back.oCode, 'abc');
     assert.equal(back.oDirty, true);
-    assert.equal(back.updated, '2026-07-09');
+    assert.equal(back.updated, new Date().toLocaleDateString('sv')); // 每次存檔蓋當日
     store.set('bcsp:owned', '{broken');
     assert.deepEqual(loadOwned().ids, new Set()); // 壞值 → 空
   } finally {
