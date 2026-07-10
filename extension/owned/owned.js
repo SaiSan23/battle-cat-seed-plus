@@ -1,5 +1,5 @@
 // 擁有清單頁：資料來源＝/cats 每日快取（全站目錄，與卡池無關）。
-// 勾選即存（oDirty，換碼延後到要用時）；篩選列（稀有度／擁有／佔位名）僅影響顯示，不影響統計。
+// 勾選即存（oDirty，換碼延後到要用時）；篩選列（稀有度／擁有／召喚）僅影響顯示，不影響統計。
 import { loadCatList } from '../lib/catlist-loader.js';
 import { catsById } from '../lib/catlist.js';
 import { loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode } from '../lib/owned.js';
@@ -83,23 +83,23 @@ function renderGroups() {
   applyFilters();
 }
 
-const PLACEHOLDER_RE = /^\d+[-_]\d+$/; // 佔位名（尚無譯名的未來貓）
+const SUMMON_RE = /^\d+[-_]\d+$/; // 召喚單位（貓咪附帶的召喚屬性，無獨立譯名、僅編號如 817-1）
 let rarityFilter = ''; // '' = 全部
 
 function applyFilters() {
   const q = $('#search').value.trim();
   const ownState = $('#own-state').value; // ''/1/0
-  const phState = $('#ph-state').value;   // ''/hide/only
+  const sumState = $('#summon-state').value; // ''/hide/only
   for (const det of document.querySelectorAll('#groups details')) {
     det.hidden = !!rarityFilter && !det.classList.contains(`g-${rarityFilter}`);
   }
   for (const li of document.querySelectorAll('#groups li')) {
     const id = Number(li.dataset.id);
-    const isPh = PLACEHOLDER_RE.test((formsById.get(id) || [''])[0]);
+    const isSummon = SUMMON_RE.test((formsById.get(id) || [''])[0]);
     const okQ = !q || li.dataset.forms.includes(q);
     const okOwn = !ownState || (ownState === '1') === owned.ids.has(id);
-    const okPh = !phState || (phState === 'only') === isPh;
-    li.hidden = !(okQ && okOwn && okPh);
+    const okSum = !sumState || (sumState === 'only') === isSummon;
+    li.hidden = !(okQ && okOwn && okSum);
   }
   if (q) for (const det of document.querySelectorAll('#groups details')) det.open = true; // 搜尋時展開全部
 }
@@ -138,7 +138,7 @@ $('#groups').addEventListener('change', (ev) => {
 });
 $('#search').addEventListener('input', applyFilters);
 $('#own-state').addEventListener('change', applyFilters);
-$('#ph-state').addEventListener('change', applyFilters);
+$('#summon-state').addEventListener('change', applyFilters);
 
 // 型態切換就地更新，不重繪分組——保留收合與捲動
 function applyForm() {
