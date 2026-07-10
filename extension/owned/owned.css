@@ -1,3 +1,6 @@
+/* 擁有清單頁＝收藏帳本。設計 token 與深淺色作法對齊 view.css。
+   視覺語言引用 godfat 原站的 owned 標示（azure 底＋左緣稀有度色條）：
+   擁有的貓 chip 長得跟你在原站看到的一樣；分組標題是稀有度色進度列。 */
 :root {
   color-scheme: light dark;
   --bg: #f6f7f9;
@@ -6,13 +9,26 @@
   --text: #1f2937;
   --muted: #6b7280;
   --accent: #3b5bdb;
+  --accent-weak: #eef1fe;
   --r: 8px;
   --rc: 6px;
   --shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --btn-hover: #f3f4f6;
   --input-bg: #fff;
-  --badge-border: #d6def9;
   --danger-fg: #b3261e;
+  --bar-track: #edeef1;
+
+  /* godfat owned 視覺（原站 azure 底）＋稀有度強調色（色點/色條/進度列用，非格子底色） */
+  --owned-bg: azure;
+  --owned-hover: #dcf5f5;
+  --owned-border: #b5e0e4;
+  --r-legend: darkviolet;
+  --r-uber: #ff5252;
+  --r-supa: #e6b800;
+  --r-rare: #b9bec7;
+  --r-special: #8fa3b8;
+  --r-normal: #a8aeb9;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -22,30 +38,106 @@
     --text: #e5e7eb;
     --muted: #9aa1ac;
     --accent: #748ffc;
+    --accent-weak: rgba(116, 143, 252, .15);
     --shadow: 0 1px 3px rgba(0, 0, 0, .4);
     --btn-hover: #2a2e37;
-    --input-bg: #16181d;
-    --badge-border: #3a4152;
+    --input-bg: #191c22;
+    --danger-fg: #ff8a80;
+    --bar-track: #2a2e37;
+
+    --owned-bg: #13333a;
+    --owned-hover: #1a434c;
+    --owned-border: #1e4d55;
+    --r-legend: #a06bd6;
+    --r-uber: #e06c6c;
+    --r-supa: #d4b93a;
+    --r-rare: #6b7280;
+    --r-special: #7e93a8;
+    --r-normal: #565e6b;
   }
 }
+
 * { box-sizing: border-box; }
 /* display:flex 等會蓋過 hidden 屬性的 UA 樣式，一律以屬性選擇器強制隱藏（同 view.css） */
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
-#topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
-#topbar h1 { font-size: 16px; margin: 0; }
-.badge { font-size: 12px; color: var(--muted); border: 1px solid var(--badge-border); border-radius: var(--rc); padding: 2px 8px; background: var(--surface); }
-#controls, #import-box { display: flex; align-items: center; gap: 10px; padding: 0 14px 10px; flex-wrap: wrap; }
-#search, #import-input { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--rc); background: var(--input-bg); color: var(--text); }
-#import-input { min-width: 320px; }
-button { padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--rc); background: var(--surface); color: var(--text); cursor: pointer; }
+
+#topbar { display: flex; align-items: baseline; gap: 12px; padding: 14px 16px 8px; }
+#topbar h1 { font-size: 17px; margin: 0; letter-spacing: .02em; }
+.badge { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+#controls, #import-box { display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; flex-wrap: wrap; }
+.field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.field input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+#search, #import-input {
+  font: inherit; height: 30px; padding: 5px 8px; color: var(--text);
+  background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--rc);
+}
+#search { width: 220px; }
+/* 匯入輸入是網址/短碼：等寬字型表明「這是一段代碼」 */
+#import-input { flex: 1; min-width: 260px; max-width: 560px; font-family: var(--mono); font-size: 12px; }
+button, .btn-secondary {
+  font: inherit; height: 30px; padding: 0 12px; cursor: pointer;
+  color: var(--text); background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--rc);
+}
 button:hover { background: var(--btn-hover); }
-#status { padding: 0 14px 6px; color: var(--danger-fg); }
+input:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+#status { padding: 0 16px 6px; color: var(--danger-fg); min-height: 1.2em; }
 #import-result { color: var(--muted); }
-#groups { padding: 0 14px 20px; }
+#import-result button { height: 26px; padding: 0 10px; font-size: 12px; }
+
+#groups { padding: 2px 16px 24px; }
 #groups details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); margin-bottom: 10px; }
-#groups summary { cursor: pointer; padding: 8px 12px; font-weight: 600; }
-#groups ul { list-style: none; margin: 0; padding: 4px 12px 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
-#groups li { display: flex; align-items: center; gap: 4px; }
-#groups li a { text-decoration: none; opacity: .6; }
-#groups label { cursor: pointer; }
+/* 分組標題＝進度列：稀有度色點＋填充條＋own/all（等寬數字）；捲動時吸頂 */
+#groups summary {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; padding: 9px 12px; font-weight: 600;
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface); border-radius: var(--r);
+}
+#groups details[open] summary { border-bottom: 1px solid var(--border); border-radius: var(--r) var(--r) 0 0; }
+#groups summary .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--gc, var(--muted)); flex: none; }
+.g-bar { flex: 1; max-width: 260px; height: 6px; border-radius: 3px; background: var(--bar-track); overflow: hidden; }
+.g-bar i { display: block; height: 100%; border-radius: 3px; background: var(--gc, var(--muted)); transition: width .4s ease; }
+.g-cnt { margin-left: auto; color: var(--muted); font-weight: 500; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* 分組 → 稀有度強調色 */
+.g-legend { --gc: var(--r-legend); }
+.g-uber { --gc: var(--r-uber); }
+.g-supa { --gc: var(--r-supa); }
+.g-rare { --gc: var(--r-rare); }
+.g-special { --gc: var(--r-special); }
+.g-normal { --gc: var(--r-normal); }
+
+#groups ul {
+  list-style: none; margin: 0; padding: 10px 12px 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 8px;
+}
+#groups li { display: flex; align-items: center; min-width: 0; }
+#groups li label {
+  flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 4px 8px; cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border); border-left: 4px solid transparent;
+  border-radius: var(--rc);
+}
+#groups li label:hover { background: var(--btn-hover); }
+#groups li input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; margin: 0; flex: none; }
+#groups li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 擁有＝godfat 原站同款：azure 底＋左緣稀有度色條 */
+#groups li.owned label { background: var(--owned-bg); border-color: var(--owned-border); border-left-color: var(--gc, var(--muted)); }
+/* owned 的 hover 保留 azure 語意（僅加深），不退回一般灰 hover */
+#groups li.owned label:hover { background: var(--owned-hover); }
+#groups li a { text-decoration: none; font-size: 12px; margin-left: 4px; flex: none; opacity: 0; transition: opacity .15s; }
+#groups li:hover a, #groups li a:focus-visible { opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .g-bar i, #groups li a { transition: none; }
+}
+@media (max-width: 560px) {
+  #search { flex: 1; width: auto; }
+  .g-bar { max-width: none; }
+}

@@ -506,7 +506,7 @@ function openUnownedPick() {
     const names = (groups.get(r) || []).sort();
     if (!names.length) continue;
     parts.push(
-      `<div class="up-group"><div class="up-head">${RARITY_LABEL[r]}（${names.length}）</div>` +
+      `<div class="up-group"><div class="up-head"><i class="up-dot" data-r="${r}"></i>${RARITY_LABEL[r]}（${names.length}）</div>` +
         names.map((n) => `<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join('') +
         '</div>'
     );

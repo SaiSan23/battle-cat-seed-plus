@@ -21,15 +21,24 @@ const formsById = new Map(); // id → 全型態名串（搜尋用）
 
 function renderStats() {
   const per = new Map(RARITY_ORDER.map(([r]) => [r, { own: 0, all: 0 }]));
+  let own = 0;
+  let all = 0;
   for (const [id, { rarity }] of byId) {
     const c = per.get(rarity);
     if (!c) continue;
     c.all++;
-    if (owned.ids.has(id)) c.own++;
+    all++;
+    if (owned.ids.has(id)) { c.own++; own++; }
   }
-  $('#stats').textContent = RARITY_ORDER
-    .map(([r, label]) => `${label} ${per.get(r).own}/${per.get(r).all}`)
-    .join('　');
+  $('#stats').textContent = `總收藏 ${own}/${all}`;
+  // 各分組標題的計數與進度列（分組不重繪，勾選後只更新這裡）
+  for (const [r] of RARITY_ORDER) {
+    const det = document.querySelector(`#groups details.g-${r}`);
+    if (!det) continue;
+    const { own: o, all: a } = per.get(r);
+    det.querySelector('.g-cnt').textContent = `${o}/${a}`;
+    det.querySelector('.g-bar i').style.width = a ? `${(o / a) * 100}%` : '0';
+  }
 }
 
 function renderGroups() {
@@ -39,15 +48,17 @@ function renderGroups() {
     const cats = [...byId].filter(([, v]) => v.rarity === rarity);
     if (!cats.length) continue;
     const det = document.createElement('details');
+    det.className = `g-${rarity}`; // 稀有度強調色（色點/進度列/擁有色條）由此接色
     det.open = rarity === 'legend' || rarity === 'uber'; // 抽卡主對象預設展開
-    det.innerHTML = `<summary>${label}（${cats.length}）</summary>`;
+    det.innerHTML = `<summary><i class="dot"></i>${label}<span class="g-bar"><i></i></span><span class="g-cnt"></span></summary>`;
     const ul = document.createElement('ul');
     for (const [id, { name }] of cats) {
       const li = document.createElement('li');
       li.dataset.id = id;
       li.dataset.forms = formsById.get(id) || name;
+      if (owned.ids.has(id)) li.className = 'owned';
       li.innerHTML =
-        `<label><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}> ${esc(name)}</label>` +
+        `<label><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}> <span class="nm" title="${esc(name)}">${esc(name)}</span></label>` +
         `<a href="${buildCatUrl(id, lang)}" target="_blank" title="在 godfat 查看">🐾</a>`;
       ul.appendChild(li);
     }
@@ -80,6 +91,7 @@ $('#groups').addEventListener('change', (ev) => {
   if (!cb) return;
   const id = Number(cb.value);
   if (cb.checked) owned.ids.add(id); else owned.ids.delete(id);
+  cb.closest('li').classList.toggle('owned', cb.checked); // godfat 同款擁有底色即時反映
   owned.oDirty = true; // 本地改動後短碼過期，要用時再換
   saveOwned(owned);
   renderStats();

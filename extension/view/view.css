@@ -451,8 +451,22 @@ tbody td.path-gu { outline: 3px double var(--gu); outline-offset: -3px; }
 #up-count { margin-right: auto; font-size: 11px; color: var(--muted); }
 #up-count.up-over { color: var(--danger-fg); font-weight: 600; }
 .up-group { margin-bottom: 8px; }
-.up-head { font-weight: 600; margin-bottom: 2px; }
+.up-head { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 2px; }
+/* 分組色點沿用稀有度 token（special/normal 無專屬色 → muted） */
+.up-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--muted); }
+.up-dot[data-r="legend"] { background: var(--r-legend); }
+.up-dot[data-r="uber"] { background: var(--r-uber); }
+.up-dot[data-r="supa"] { background: var(--r-supa); }
+.up-dot[data-r="rare"] { background: var(--stripe-rare); }
 .up-group label { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 2px 0; cursor: pointer; }
+
+/* 擁有清單入口：與工具列按鈕同語言的連結 */
+#owned-page {
+  font-size: 12px; color: var(--text); text-decoration: none;
+  height: 30px; display: inline-flex; align-items: center; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: var(--rc); background: var(--input-bg);
+}
+#owned-page:hover { background: var(--btn-hover); }
 
 /* 外開圖示 */
 a.gf { color: var(--accent); margin-left: 6px; display: inline-flex; vertical-align: middle; opacity: .65; }
