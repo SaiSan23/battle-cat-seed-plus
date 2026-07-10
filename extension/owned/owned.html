@@ -19,10 +19,25 @@
       <option value="3">四階</option>
     </select>
   </label>
-  <label class="field"><input id="only-unowned" type="checkbox"> 只看未擁有</label>
+  <label class="field">擁有
+    <select id="own-state">
+      <option value="">全部</option>
+      <option value="1">已擁有</option>
+      <option value="0">未擁有</option>
+    </select>
+  </label>
+  <label class="field">佔位名
+    <select id="ph-state" title="尚未實裝、只有編號的貓（如 817-1）">
+      <option value="">顯示</option>
+      <option value="hide">隱藏</option>
+      <option value="only">只看</option>
+    </select>
+  </label>
   <button id="export" type="button" class="btn-secondary"
     title="換取最新 o 短碼並在 godfat 開啟；該網址可收藏當備份">在 godfat 開啟清單</button>
 </div>
+
+<div id="rarity-filter" role="group" aria-label="稀有度篩選"></div>
 
 <div id="import-box">
   <input id="import-input" type="text" placeholder="貼上含 o= 的 godfat 網址（或裸短碼）…">

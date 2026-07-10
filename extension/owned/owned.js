@@ -1,5 +1,5 @@
 // 擁有清單頁：資料來源＝/cats 每日快取（全站目錄，與卡池無關）。
-// 勾選即存（oDirty，換碼延後到要用時）；「只看未擁有」即未擁有總覽。
+// 勾選即存（oDirty，換碼延後到要用時）；篩選列（稀有度／擁有／佔位名）僅影響顯示，不影響統計。
 import { loadCatList } from '../lib/catlist-loader.js';
 import { catsById } from '../lib/catlist.js';
 import { loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode } from '../lib/owned.js';
@@ -83,15 +83,39 @@ function renderGroups() {
   applyFilters();
 }
 
+const PLACEHOLDER_RE = /^\d+[-_]\d+$/; // 佔位名（尚無譯名的未來貓）
+let rarityFilter = ''; // '' = 全部
+
 function applyFilters() {
   const q = $('#search').value.trim();
-  const onlyUn = $('#only-unowned').checked;
+  const ownState = $('#own-state').value; // ''/1/0
+  const phState = $('#ph-state').value;   // ''/hide/only
+  for (const det of document.querySelectorAll('#groups details')) {
+    det.hidden = !!rarityFilter && !det.classList.contains(`g-${rarityFilter}`);
+  }
   for (const li of document.querySelectorAll('#groups li')) {
+    const id = Number(li.dataset.id);
+    const isPh = PLACEHOLDER_RE.test((formsById.get(id) || [''])[0]);
     const okQ = !q || li.dataset.forms.includes(q);
-    const okU = !onlyUn || !owned.ids.has(Number(li.dataset.id));
-    li.hidden = !(okQ && okU);
+    const okOwn = !ownState || (ownState === '1') === owned.ids.has(id);
+    const okPh = !phState || (phState === 'only') === isPh;
+    li.hidden = !(okQ && okOwn && okPh);
   }
   if (q) for (const det of document.querySelectorAll('#groups details')) det.open = true; // 搜尋時展開全部
+}
+
+// 稀有度 chips：「全部」＋六稀有度，單選高亮，切換整組顯示/隱藏
+{
+  const rf = $('#rarity-filter');
+  rf.innerHTML = '<button type="button" class="on" data-r="">全部</button>' +
+    RARITY_ORDER.map(([r, label]) => `<button type="button" data-r="${r}">${label}</button>`).join('');
+  rf.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-r]');
+    if (!btn) return;
+    rarityFilter = btn.dataset.r;
+    for (const b of rf.querySelectorAll('button')) b.classList.toggle('on', b === btn);
+    applyFilters();
+  });
 }
 
 // view 等他分頁改了清單 → 重載重繪，避免本頁舊快照整包覆寫（storage 事件跨分頁同源觸發）
@@ -110,10 +134,11 @@ $('#groups').addEventListener('change', (ev) => {
   owned.oDirty = true; // 本地改動後短碼過期，要用時再換
   saveOwned(owned);
   renderStats();
-  if ($('#only-unowned').checked) applyFilters();
+  if ($('#own-state').value) applyFilters();
 });
 $('#search').addEventListener('input', applyFilters);
-$('#only-unowned').addEventListener('change', applyFilters);
+$('#own-state').addEventListener('change', applyFilters);
+$('#ph-state').addEventListener('change', applyFilters);
 
 // 型態切換就地更新，不重繪分組——保留收合與捲動
 function applyForm() {

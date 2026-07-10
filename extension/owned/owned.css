@@ -85,6 +85,10 @@ input:focus-visible, button:focus-visible, summary:focus-visible {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
+#rarity-filter { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 10px; }
+#rarity-filter button { height: 26px; padding: 0 10px; font-size: 12px; border-radius: 999px; color: var(--muted); }
+#rarity-filter button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
+
 #status { padding: 0 16px 6px; color: var(--danger-fg); min-height: 1.2em; }
 #import-result { color: var(--muted); }
 #import-result button { height: 26px; padding: 0 10px; font-size: 12px; }
