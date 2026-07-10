@@ -64,6 +64,8 @@ $('#load').addEventListener('click', () => {
   if (SEED.forceGuaranteed && SEED.event && ids.includes(SEED.event)) {
     params.set('force', `${SEED.event}:${SEED.forceGuaranteed}`);
   }
+  // godfat 頁帶 o（擁有清單短碼）→ 轉交 view：連結沿用＋與本地不同時提示匯入
+  if (SEED.o) params.set('o', SEED.o);
   chrome.tabs.create({ url: chrome.runtime.getURL('view/view.html') + '?' + params });
 });
 

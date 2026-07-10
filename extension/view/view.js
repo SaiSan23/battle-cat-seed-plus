@@ -7,7 +7,7 @@ import { cacheKey, cacheGet, cacheSet, clearCache, purgeOldCaches } from '../lib
 import { planRoutes } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
 import { loadCatList } from '../lib/catlist-loader.js';
-import { loadOwned, saveOwned } from '../lib/owned.js';
+import { loadOwned, saveOwned, fetchOCode } from '../lib/owned.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -68,6 +68,9 @@ window.addEventListener('storage', (ev) => {
 });
 
 function catIdOf(name) { return catMap?.get(name)?.id ?? null; }
+
+// godfat 外連帶擁有清單（原站套 owned 底色）；清單空或無短碼則不帶
+function ownedO() { return ownedData.ids.size && ownedData.oCode ? ownedData.oCode : undefined; }
 
 // 未擁有標示：渲染後補套 class（同 applyFind 模式）——不動 cellHtml，catMap 晚到也能補
 function applyOwnedMarks() {
@@ -130,7 +133,7 @@ function renderError(id, message) {
   div.className = 'err';
   div.innerHTML =
     `卡池 ${id} 載入失敗：${message} ` +
-    `<a href="${buildEventUrl({ seed, event: id, count: useCount, lang, last, forceGuaranteed })}" target="_blank">在 godfat 開啟</a>`;
+    `<a href="${buildEventUrl({ seed, event: id, count: useCount, lang, last, forceGuaranteed, o: ownedO() })}" target="_blank">在 godfat 開啟</a>`;
   document.querySelector('#errors').appendChild(div);
 }
 
@@ -195,7 +198,7 @@ function renderTable(entries) {
   const nameRow = [];
   for (const e of visible) {
     const link = buildEventUrl({ seed, event: e.banner.id, count: useCount, lang, last,
-      forceGuaranteed: Number(guFor(e.banner.id)) || undefined });
+      forceGuaranteed: Number(guFor(e.banner.id)) || undefined, o: ownedO() });
     nameRow.push(
       `<th colspan="${sub}" title="${esc(e.banner.name)}">${esc(e.banner.short)}` +
         `<a class="gf" href="${link}" target="_blank" title="在 godfat 開啟此卡池">${GF_ICON}</a></th>`
@@ -644,6 +647,29 @@ function runPlan() {
   }, 0));
 }
 
+// 本地清單改過（oDirty）→ 開 godfat 前先換一次新短碼（單次輕量請求）；失敗照常開、僅短碼較舊/缺
+let gfSyncing = false; // 換碼進行中：吞掉重複點擊（禮貌性：不重複打 godfat）
+document.querySelector('#grid').addEventListener('click', async (ev) => {
+  const a = ev.target.closest('a.gf');
+  if (!a || !ownedData.oDirty || !ownedData.ids.size) return;
+  ev.preventDefault();
+  if (gfSyncing) return;
+  gfSyncing = true;
+  try {
+    const code = await fetchOCode(ownedData.ids, lang);
+    if (code) {
+      ownedData.oCode = code;
+      ownedData.oDirty = false;
+      saveOwned(ownedData);
+      renderTable(currentEntries); // 表頭連結換上新短碼
+    }
+    const url = new URL(a.href);
+    if (code) url.searchParams.set('o', code);
+    window.open(url, '_blank');
+  } finally {
+    gfSyncing = false;
+  }
+});
 document.querySelector('#grid').addEventListener('click', (ev) => {
   const td = ev.target.closest('td[data-bid]');
   if (!td) { closeCellMenu(); return; }
@@ -782,6 +808,17 @@ document.querySelector('#clear-cache').addEventListener('click', (ev) => {
     btn.disabled = false;
   }, 1500);
 });
+
+// godfat 網址上帶著與本地不同的 o → 一鍵導向清單頁匯入（取代/合併在那邊選）
+{
+  const pageO = qp.get('o');
+  if (pageO && pageO !== ownedData.oCode) {
+    const hint = document.querySelector('#owned-import-hint');
+    hint.hidden = false;
+    hint.querySelector('a').href =
+      `../owned/owned.html?lang=${encodeURIComponent(lang)}&import=${encodeURIComponent(pageO)}`;
+  }
+}
 
 if (!seed || eventIds.length === 0) {
   document.querySelector('#progress').textContent = '缺少 seed 或卡池參數。';
