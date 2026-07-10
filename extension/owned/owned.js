@@ -16,7 +16,7 @@ const RARITY_ORDER = [
 ];
 
 // 貓咪圖示：BC 資訊網（https://battlecatsinfo.github.io，圖檔編號＝godfat 貓 id − 1）
-// 型態索引 0基本/1二階/2三階/3四階；無該階 404 → onerror 退純文字
+// 型態索引 0基本/1二階/2三階/3四階；無該階 404 → onerror 往上一階找，全缺退純文字
 const ICON_BASE = 'https://battlecatsinfo.github.io/img/u';
 const FORM_KEY = 'bcsp:owned-form';
 const iconUrl = (id, fi) => `${ICON_BASE}/${id - 1}/${fi}.png`;
@@ -72,7 +72,7 @@ function renderGroups() {
       const fi = formIndexFor(id);
       li.innerHTML =
         `<label title="${esc(forms.join(' | '))}"><input type="checkbox" value="${id}"${owned.ids.has(id) ? ' checked' : ''}>` +
-        ` <img class="icon" loading="lazy" alt="" src="${iconUrl(id, fi)}">` +
+        ` <img class="icon" loading="lazy" alt="" data-fi="${fi}" src="${iconUrl(id, fi)}">` +
         ` <span class="nm">${esc(forms[fi] || name)}</span></label>` +
         `<a href="${buildCatUrl(id, lang)}" target="_blank" title="在 godfat 查看">🐾</a>`;
       ul.appendChild(li);
@@ -151,15 +151,26 @@ function applyForm() {
     li.querySelector('.nm').textContent = forms[fi] || forms[0];
     const img = li.querySelector('img.icon');
     img.hidden = false; // 換階重試（前一階可能 404 被隱藏）
+    img.dataset.fi = fi;
     img.src = iconUrl(id, fi);
   }
 }
 $('#form-sel').addEventListener('change', applyForm);
 try { $('#form-sel').value = localStorage.getItem(FORM_KEY) || '0'; } catch { /* 無 localStorage → 預設 */ }
 
-// 圖 404／外站掛 → 隱藏圖留文字（error 不冒泡，capture 委派）
+// 圖缺該階 → 往上一階找（蛋系列 BC 資訊網只有孵化後的圖）；全缺才隱圖留文字。
+// error 不冒泡，capture 委派。
 $('#groups').addEventListener('error', (ev) => {
-  if (ev.target?.matches?.('img.icon')) ev.target.hidden = true;
+  const img = ev.target;
+  if (!img?.matches?.('img.icon')) return;
+  const id = Number(img.closest('li').dataset.id);
+  const fi = Number(img.dataset.fi) + 1;
+  if (fi < (formsById.get(id)?.length || 1)) {
+    img.dataset.fi = fi;
+    img.src = iconUrl(id, fi);
+  } else {
+    img.hidden = true;
+  }
 }, true);
 
 // ── 匯入（預覽 → 取代/合併） ──
