@@ -5,8 +5,17 @@
 ## 指令
 
 - 測試：`npm test`（node --test，fixture 在 `test/fixtures/`，結構筆記見 `test/fixtures/STRUCTURE.md`）
+- 載入擴充：chrome://extensions → 開發人員模式 → 載入未封裝 → 選 `extension/`
 
 ## 協作流程（重要）
+
+### 功能開發流程
+
+- 標準順序：**可行性實測 → 規格書 → 計畫書 → subagent-driven-development 逐 task 實作＋審查 → frontend-design 收尾 → 最終全分支 review → 停在分支等驗收**。
+- 文件位置：規格 `docs/superpowers/specs/YYYY-MM-DD-<功能>-design.md`、計畫 `docs/superpowers/plans/YYYY-MM-DD-<功能>.md`；計畫的 task 附完整程式碼與 TDD 步驟。
+- **設計前先實測關鍵假設**（外站 API 行為、URL/圖檔結構、擴充權限），實測結果連同日期寫進規格書——假設錯了整個設計會歪。
+- 進度 ledger：`.superpowers/sdd/progress.md`。斷線或 context 壓縮後以 ledger＋git log 為準，不憑記憶重做已完成的 task。
+- **驗收期間的變更要回寫規格/計畫**：文末補〈實作後變更〉節（附原因與對應 commit）；文件的事實錯誤就地加註更正，當時的程式碼區塊保留原文不竄改。
 
 ### Git 工作流
 
@@ -35,6 +44,8 @@
 ## 架構速記
 
 - `extension/lib/`：純函式（parser / merge / cache / godfat URL），皆有對應 `test/*.test.js`。
+- `extension/popup/`：唯一碰 chrome.* API 的入口層；`extension/content/`：godfat 頁的 content script。
 - `extension/view/`：比較頁（無 chrome.* API 的純網頁，靠 query string 帶參數、localStorage 快取）。
 - `extension/owned/`：擁有清單頁（純網頁，與 view 同源共用 localStorage；資料鍵 `bcsp:owned` 屬使用者設定、清快取不清）。o 短碼＝godfat 伺服器端編碼：解碼靠解析 `/cats?o=…` 的 checked、編碼靠 `?t=id…` 讓 godfat 302 轉出。
 - 重抽格（R 字尾 pick id）是**條件性**結果：僅在「以重複狀態抵達」時觸發；主格顯示天然結果，重抽降為附註。
+- 深入細節：godfat 行為與資料慣例見 README〈重要實作細節〉；種子機制文獻在 `docs/seed-tracking/` 與 `docs/Seed Track Guide.pdf`；各功能的設計與計畫在 `docs/superpowers/`。
