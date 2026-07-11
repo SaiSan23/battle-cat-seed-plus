@@ -5,3 +5,7 @@ node_modules/
 # Claude Code 個人本地設定
 .claude/settings.local.json
 .claude/statusline.txt
+
+# 工作暫存（SDD 進度與審查包、瀏覽器實測快照）
+.superpowers/
+.playwright-mcp/
