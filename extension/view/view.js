@@ -8,6 +8,7 @@ import { planRoutes, MAX_TARGETS } from '../lib/route.js';
 import { actualRarity } from '../lib/rarity.js';
 import { loadCatList } from '../lib/catlist-loader.js';
 import { loadOwned, saveOwned, fetchOCode } from '../lib/owned.js';
+import { groupState, rangeIndices } from '../lib/multiselect.js';
 
 // 外開連結圖示（Feather 風 stroke，內嵌 SVG，CSP 安全）
 const GF_ICON =
@@ -506,8 +507,8 @@ function openUnownedPick() {
     const names = (groups.get(r) || []).sort();
     if (!names.length) continue;
     parts.push(
-      `<div class="up-group"><div class="up-head"><i class="up-dot" data-r="${r}"></i>${RARITY_LABEL[r]}（${names.length}）</div>` +
-        names.map((n) => `<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join('') +
+      `<div class="up-group"><label class="up-head"><input type="checkbox" class="up-gcb"><i class="up-dot" data-r="${r}"></i>${RARITY_LABEL[r]}（${names.length}）</label>` +
+        names.map((n) => `<label><input type="checkbox" class="up-item" value="${esc(n)}"> ${esc(n)}</label>`).join('') +
         '</div>'
     );
   }
@@ -515,13 +516,32 @@ function openUnownedPick() {
   if (unknown) parts.push(`<p class="hint">另有 ${unknown} 名查無 /cats 目錄、無法判定，未列入</p>`);
   document.querySelector('#unowned-pick-body').innerHTML = parts.join('');
   document.querySelector('#unowned-pick').hidden = false;
+  upAnchor = null;
+  refreshUpState();
+}
+
+function upItems() {
+  return [...document.querySelectorAll('#unowned-pick-body input.up-item')];
+}
+// 所有勾選操作的統一收尾：群組三態回寫＋計數/擋板
+function refreshUpState() {
+  for (const g of document.querySelectorAll('#unowned-pick-body .up-group')) {
+    const st = groupState([...g.querySelectorAll('input.up-item')].map((cb) => cb.checked));
+    const gcb = g.querySelector('input.up-gcb');
+    gcb.checked = st === 'all';
+    gcb.indeterminate = st === 'partial';
+  }
   updateUpCount();
+}
+function setAllUpItems(checked) {
+  for (const cb of upItems()) cb.checked = checked;
+  refreshUpState();
 }
 
 // 選取計數與上限防呆：合計＝既有目標＋本次新增（已是目標者勾了也不重複計）
 function updateUpCount() {
   let fresh = 0;
-  for (const cb of document.querySelectorAll('#unowned-pick-body input:checked')) {
+  for (const cb of document.querySelectorAll('#unowned-pick-body input.up-item:checked')) {
     if (!routeTargets.has(`cat:${cb.value}`)) fresh++;
   }
   const total = routeTargets.size + fresh;
@@ -764,17 +784,37 @@ document.querySelector('#find-add-targets').addEventListener('click', (ev) => {
 document.querySelector('#plan-route').addEventListener('click', runPlan);
 document.querySelector('#add-unowned').addEventListener('click', openUnownedPick);
 document.querySelector('#up-close').addEventListener('click', () => { document.querySelector('#unowned-pick').hidden = true; });
-document.querySelector('#unowned-pick-body').addEventListener('change', updateUpCount);
-document.querySelector('#up-all').addEventListener('click', () => {
-  for (const cb of document.querySelectorAll('#unowned-pick-body input')) cb.checked = true;
-  updateUpCount();
+let upAnchor = null; // Shift 範圍錨點＝最後一次非 Shift 點擊的單項扁平 index
+let upShiftHint = false; // 點 label 文字時瀏覽器轉發給 input 的合成 click 可能遺失 shiftKey，先在 label 層記下
+document.querySelector('#unowned-pick-body').addEventListener('click', (ev) => {
+  const cb = ev.target;
+  if (!(cb instanceof HTMLInputElement)) {
+    upShiftHint = ev.shiftKey && !!ev.target.closest('label'); // 點在 label 才會轉發給勾選框，其餘不留 hint
+    return;
+  }
+  const shift = ev.shiftKey || upShiftHint;
+  upShiftHint = false;
+  if (cb.classList.contains('up-gcb')) {
+    for (const item of cb.closest('.up-group').querySelectorAll('input.up-item')) item.checked = cb.checked;
+  } else if (!cb.classList.contains('up-item')) {
+    return; // 其他 input（未來的搜尋框等）不參與勾選邏輯
+  } else if (shift && upAnchor != null) {
+    // 錨點→本次之間整段設成本次點擊後的狀態；錨點不動（Gmail 慣例）
+    const items = upItems();
+    for (const j of rangeIndices(upAnchor, items.indexOf(cb))) items[j].checked = cb.checked;
+  } else {
+    upAnchor = upItems().indexOf(cb);
+  }
+  refreshUpState();
 });
-document.querySelector('#up-none').addEventListener('click', () => {
-  for (const cb of document.querySelectorAll('#unowned-pick-body input')) cb.checked = false;
-  updateUpCount();
+document.querySelector('#up-all').addEventListener('click', () => setAllUpItems(true));
+document.querySelector('#up-none').addEventListener('click', () => setAllUpItems(false));
+document.querySelector('#up-invert').addEventListener('click', () => {
+  for (const cb of upItems()) cb.checked = !cb.checked;
+  refreshUpState();
 });
 document.querySelector('#up-add').addEventListener('click', () => {
-  for (const cb of document.querySelectorAll('#unowned-pick-body input:checked')) {
+  for (const cb of document.querySelectorAll('#unowned-pick-body input.up-item:checked')) {
     const name = cb.value;
     const id = `cat:${name}`;
     if (!routeTargets.has(id)) routeTargets.set(id, { id, kind: 'cat', name, label: name, accept: catAccept(name) });
