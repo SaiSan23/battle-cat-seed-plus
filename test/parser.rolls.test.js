@@ -50,3 +50,40 @@ test('parseRollTable 對無保證格者 hasGuaranteed=false', () => {
   assert.equal(hasGuaranteed, false); // 即使有 Guaranteed 表頭，無 G 格 → false
   assert.equal(cells.get('1A').name, '貓');
 });
+
+test('parseRollTable 支援 godfat 2026-09 新版 minor_/major_ 稀有度 class 格式', () => {
+  const tableHtml =
+    '<table><tbody>' +
+    '<tr><td class="position cat pick minor_rare major_rare next_position" onclick="pick(\'1A\')"><span><a>稀有貓</a> <a>🐾</a></span></td>' +
+    '<td class="position cat pick minor_rare major_rare" onclick="pick(\'1AG\')"><span><a>保證貓</a> <a>🐾</a> -&gt; 11B</span></td>' +
+    '<td class="position cat pick minor_rare major_rare" onclick="pick(\'1B\')"><span><a>稀有B</a> <a>🐾</a></span></td></tr>' +
+    '<tr><td class="position cat pick minor_supa major_supa" onclick="pick(\'2A\')"><span><a>激稀有貓</a> <a>🐾</a></span></td>' +
+    '<td class="position cat pick minor_supa_fest major_supa_fest" onclick="pick(\'2B\')"><span><a>祭激稀有</a> <a>🐾</a></span></td></tr>' +
+    '<tr><td class="position cat pick minor_uber major_uber" onclick="pick(\'3A\')"><span><a>超激貓</a> <a>🐾</a></span></td>' +
+    '<td class="position cat pick minor_uber_fest major_uber_fest" onclick="pick(\'3B\')"><span><a>祭超激貓</a> <a>🐾</a></span></td></tr>' +
+    '<tr><td class="position cat pick minor_exclusive major_exclusive" onclick="pick(\'4A\')"><span><a>限定超激</a> <a>🐾</a></span></td>' +
+    '<td class="position cat pick minor_legend major_legend" onclick="pick(\'4B\')"><span><a>傳說貓</a> <a>🐾</a></span></td></tr>' +
+    '<tr><td class="position cat pick minor_legend_fest major_legend_fest" onclick="pick(\'5A\')"><span><a>祭傳說貓</a> <a>🐾</a></span></td>' +
+    '<td class="position cat pick minor_uber major_uber_fest" onclick="pick(\'5B\')"><span><a>進階雙色貓</a> <a>🐾</a></span></td></tr>' +
+    '</tbody></table>';
+  const { cells, hasGuaranteed } = parseRollTable(parseHTML(tableHtml).document);
+
+  assert.equal(hasGuaranteed, true);
+  assert.equal(cells.size, 10);
+
+  const c1A = cells.get('1A');
+  assert.equal(c1A.name, '稀有貓');
+  assert.equal(c1A.rarity, 'rare');
+  assert.equal(c1A.isNext, true);
+  assert.equal(c1A.guaranteed?.name, '保證貓');
+  assert.equal(c1A.guaranteed?.to, '11B');
+
+  assert.equal(cells.get('2A').rarity, 'supa');
+  assert.equal(cells.get('2B').rarity, 'supa_fest');
+  assert.equal(cells.get('3A').rarity, 'uber');
+  assert.equal(cells.get('3B').rarity, 'uber_fest');
+  assert.equal(cells.get('4A').rarity, 'exclusive');
+  assert.equal(cells.get('4B').rarity, 'legend');
+  assert.equal(cells.get('5A').rarity, 'legend'); // legend_fest 正規化為 legend
+  assert.equal(cells.get('5B').rarity, 'uber_fest'); // fest 優先判定
+});

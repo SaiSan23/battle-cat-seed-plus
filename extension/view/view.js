@@ -112,6 +112,9 @@ async function fetchBanner(id, useCount, force) {
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const parsed = parseRollTable(doc);
+    if (parsed.cells.size === 0) {
+      throw new Error('未解析到任何抽卡結果（可能 godfat 頁面結構變更）');
+    }
     const name = doc.querySelector('#event_select option[selected]')?.textContent.trim() || id;
     cacheSet(key, { name, count: useCount, parsed });
     return makeEntry(id, name, parsed, false);

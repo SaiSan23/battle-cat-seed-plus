@@ -6,7 +6,8 @@
 // v4：新增 dupeGuaranteed（撞名起手保證，RG 格），舊快取無此欄位 → 升版使其失效
 // v5：count 移出鍵、改記在值裡（一池一份、就大不就小）：需求 ≤ 快取 count → 沿用
 //     （顯示端裁切）；需求更大 → 重抓覆蓋同一份。避免每個 count 各存一份副本。
-const NS = 'bcsp:v5:';
+// v6：godfat 改用 minor_/major_ class 前綴，升版使舊版 v5 殘留的空快取失效並自動 purge
+const NS = 'bcsp:v6:';
 
 export function cacheKey({ seed, event, force, last }) {
   return `${NS}${seed}|${event}|${force || ''}|${last || ''}`;

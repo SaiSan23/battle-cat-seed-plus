@@ -1,5 +1,5 @@
 // godfat HTML 解析（純函式，接受 Document）
-export const PARSER_VERSION = '2026-06-22';
+export const PARSER_VERSION = '2026-09-20';
 
 const EVENT_ID_RE = /^\d{4}-\d{2}-\d{2}_\d+$/;
 
@@ -16,15 +16,23 @@ export function parseEventList(doc) {
   return out;
 }
 
-// 完整型別清單（由 fixture 確認）；先檢查特殊/fest 變體再到普通，避免子字串誤判
-const RARITIES = ['legend', 'exclusive', 'uber_fest', 'uber', 'supa_fest', 'supa', 'rare'];
+// 完整型別清單（由 fixture 與 godfat 樣式確認）；先檢查特殊/fest 變體再到普通，避免子字串誤判
+const RARITIES = ['legend_fest', 'legend', 'exclusive', 'uber_fest', 'uber', 'supa_fest', 'supa', 'rare'];
 const PICK_RE = /pick\('(\d+[AB])'\)/; // 僅 Result 格：pick id 無字尾
 const GUAR_RE = /pick\('(\d+[AB])G'\)/; // 保證格：pick id 帶 G 字尾（需 force_guaranteed）
 const REROLL_RE = /pick\('(\d+[AB])R'\)/; // 重抽格：pick id 帶 R 字尾（重複稀有時的真正結果）
 const DUPE_GUAR_RE = /pick\('(\d+[AB])RG'\)/; // 撞名起手保證格（RG 字尾）：以重複狀態開確定連抽
 
 function rarityOf(el) {
-  for (const r of RARITIES) if (el.classList.contains(r)) return r;
+  for (const r of RARITIES) {
+    if (
+      el.classList.contains(r) ||
+      el.classList.contains(`minor_${r}`) ||
+      el.classList.contains(`major_${r}`)
+    ) {
+      return r === 'legend_fest' ? 'legend' : r;
+    }
+  }
   return null;
 }
 

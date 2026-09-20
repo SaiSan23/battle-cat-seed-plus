@@ -56,6 +56,7 @@ test('clearCache 清資料快取但保留使用者設定鍵', async () => {
 test('cacheGet/cacheSet 帶 count 往返；purgeOldCaches 只清舊版本鍵', async () => {
   const store = new Map([
     ['bcsp:v4:1|e|100||', '{}'], // 舊版孤兒
+    ['bcsp:v5:1|e|100||', '{}'], // v5 舊版孤兒
     ['bcsp:cats:tw', '{}'],
     ['bcsp:gu-force', '{}'],
   ]);
@@ -77,6 +78,7 @@ test('cacheGet/cacheSet 帶 count 往返；purgeOldCaches 只清舊版本鍵', a
     assert.equal(hit.count, 250); // 就大不就小的判斷依據
     purgeOldCaches();
     assert.ok(!store.has('bcsp:v4:1|e|100||')); // 舊版清掉
+    assert.ok(!store.has('bcsp:v5:1|e|100||')); // v5 舊版清掉
     assert.ok(store.has(k)); // 現版保留
     assert.ok(store.has('bcsp:cats:tw') && store.has('bcsp:gu-force')); // 非版本鍵不動
   } finally {

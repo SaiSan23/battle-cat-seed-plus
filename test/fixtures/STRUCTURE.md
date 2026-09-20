@@ -53,6 +53,10 @@ godfat 網址帶 `find=<id>`（搜貓）時命中格 class 換成 `found`、帶 
 `rare`｜`supa`｜`supa_fest`｜`uber`｜`uber_fest`｜`exclusive`（`legend` 亦可能出現，未在此 fixture 觀察到）。
 `_fest` 為 fest 限定升級格；`exclusive` 為特定 uber 集。
 
+**（2026-09-20 更新）** godfat 站台新增雙色高亮選項，格子 class 改版為帶前綴的形式：
+`minor_<rarity> major_<rarity>`（如 `minor_rare major_rare`、`minor_supa major_supa` 等，雙色模式下可能出現 `minor_uber major_uber_fest`）。
+`rarityOf` 已擴充為支援 `minor_` / `major_` 前綴，同時向下相容舊版裸 class 格式。
+
 ## 對計畫的影響（修訂）
 - `buildEventUrl`（Task 1）：新增可選 `forceGuaranteed` 參數。
 - Task 4（解析 Result 欄）：稀有度清單擴充為 `legend, exclusive, uber_fest, uber, supa_fest, supa, rare`；Result 格 = pick id **無 G 字尾**者。
