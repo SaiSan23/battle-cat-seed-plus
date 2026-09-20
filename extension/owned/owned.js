@@ -2,6 +2,7 @@
 // 勾選即存（oDirty，換碼延後到要用時）；篩選列（稀有度／擁有／召喚）僅影響顯示，不影響統計。
 import { loadCatList } from '../lib/catlist-loader.js';
 import { catsById } from '../lib/catlist.js';
+import { rangeIndices } from '../lib/multiselect.js';
 import {
   loadOwned, saveOwned, parseOwnedFromCatsDoc, extractOCode, fetchOCode,
   serializeBackup, parseBackup,
@@ -105,6 +106,7 @@ function applyFilters() {
     li.hidden = !(okQ && okOwn && okSum);
   }
   if (q) for (const det of document.querySelectorAll('#groups details')) det.open = true; // 搜尋時展開全部
+  ownedAnchor = null; // 篩選條件改變時重置 Shift 選取錨點
 }
 
 // 稀有度 chips：「全部」＋六稀有度，單選高亮，切換整組顯示/隱藏
@@ -128,12 +130,45 @@ window.addEventListener('storage', (ev) => {
   if (byId) { renderGroups(); renderStats(); }
 });
 
+function visibleCheckboxes() {
+  return Array.from(document.querySelectorAll('#groups li input[type="checkbox"]')).filter((cb) => {
+    const li = cb.closest('li');
+    const det = cb.closest('details');
+    return li && !li.hidden && det && !det.hidden && det.open;
+  });
+}
+
+let ownedShiftHint = false;
+let ownedAnchor = null;
+
+$('#groups').addEventListener('pointerdown', (ev) => {
+  ownedShiftHint = ev.shiftKey && !!ev.target.closest('label');
+});
+
 $('#groups').addEventListener('change', (ev) => {
   const cb = ev.target.closest('input[type="checkbox"]');
   if (!cb) return;
-  const id = Number(cb.value);
-  if (cb.checked) owned.ids.add(id); else owned.ids.delete(id);
-  cb.closest('li').classList.toggle('owned', cb.checked); // godfat 同款擁有底色即時反映
+  const shift = ev.shiftKey || ownedShiftHint;
+  ownedShiftHint = false;
+  const items = visibleCheckboxes();
+  const idx = items.indexOf(cb);
+
+  if (shift && ownedAnchor != null && idx !== -1) {
+    // 按住 Shift：錨點與本次點擊之間所有可見項目同步設為當前狀態（錨點不動，Gmail 慣例）
+    for (const j of rangeIndices(ownedAnchor, idx)) {
+      const item = items[j];
+      item.checked = cb.checked;
+      const id = Number(item.value);
+      if (cb.checked) owned.ids.add(id); else owned.ids.delete(id);
+      item.closest('li')?.classList.toggle('owned', cb.checked);
+    }
+  } else {
+    ownedAnchor = idx !== -1 ? idx : null;
+    const id = Number(cb.value);
+    if (cb.checked) owned.ids.add(id); else owned.ids.delete(id);
+    cb.closest('li')?.classList.toggle('owned', cb.checked);
+  }
+
   owned.oDirty = true; // 本地改動後短碼過期，要用時再換
   saveOwned(owned);
   renderStats();

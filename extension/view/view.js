@@ -53,6 +53,28 @@ function guFor(id) { return guValues.get(id) ?? ''; }
   }
 }
 
+// 顯示模式：'both'（圖文並茂，預設）、'text'（純文字）、'image'（純圖片）
+const DISPLAY_KEY = 'bcsp:view-display';
+let displayMode = localStorage.getItem(DISPLAY_KEY) || 'both';
+const displaySel = document.querySelector('#display-mode');
+if (displaySel) {
+  displaySel.value = displayMode;
+  displaySel.addEventListener('change', () => {
+    displayMode = displaySel.value;
+    localStorage.setItem(DISPLAY_KEY, displayMode);
+    renderTable(currentEntries);
+  });
+}
+
+const ICON_BASE = 'https://battlecatsinfo.github.io/img/u';
+function catAvatarHtml(name) {
+  if (displayMode === 'text') return '';
+  const id = catIdOf(name);
+  if (id == null) return '';
+  const src = `${ICON_BASE}/${id - 1}/0.png`;
+  return `<img class="cell-avatar" loading="lazy" src="${src}" alt="" onerror="this.style.display='none'">`;
+}
+
 // 擁有清單（bcsp:owned，使用者資料）：未擁有標示、格子選單標記、godfat 連結帶 o 共用
 const MARK_KEY = 'bcsp:mark-unowned';
 let ownedData = loadOwned();
@@ -166,25 +188,34 @@ function renderTable(entries) {
     if (c.isNext) cls.push('next');
     if (c.dupe) cls.push('dupe');
     if (pos.endsWith('B')) cls.push('btrack');
+    if (displayMode === 'image') cls.push('img-only');
     const mainName = c.name;
+    const avatar = catAvatarHtml(mainName);
     // 換軌方向：落點在 A 軌＝回溯 ↩（B→A）、B 軌＝前進 ↪（A→B），與 godfat 的 <-/-> 對應
     const dir = (to) => (/^\d+A/.test(to) ? '↩' : '↪');
     const dupeTo = c.dupe?.to ? ` ${dir(c.dupe.to)} ${esc(c.dupe.to)}` : '';
-    const dupeNote = c.dupe ? `<div class="dupe-note">重複→ ${esc(c.dupe.name)}${dupeTo}</div>` : '';
+    const dupeAvatar = c.dupe ? catAvatarHtml(c.dupe.name) : '';
+    const dupeNote = c.dupe ? `<div class="dupe-note">${dupeAvatar}重複→ ${esc(c.dupe.name)}${dupeTo}</div>` : '';
     const guarTo = c.guaranteed?.to ? ` ${dir(c.guaranteed.to)} ${esc(c.guaranteed.to)}` : '';
-    let guar = c.guaranteed ? `<div class="guar">保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
+    const guarAvatar = c.guaranteed ? catAvatarHtml(c.guaranteed.name) : '';
+    let guar = c.guaranteed ? `<div class="guar">${guarAvatar}保證: ${esc(c.guaranteed.name)}${guarTo}</div>` : '';
     if (c.dupeGuaranteed) {
       const dgTo = c.dupeGuaranteed.to ? ` ${dir(c.dupeGuaranteed.to)} ${esc(c.dupeGuaranteed.to)}` : '';
-      guar += `<div class="guar">保證(撞名): ${esc(c.dupeGuaranteed.name)}${dgTo}</div>`;
+      const dgAvatar = catAvatarHtml(c.dupeGuaranteed.name);
+      guar += `<div class="guar">${dgAvatar}保證(撞名): ${esc(c.dupeGuaranteed.name)}${dgTo}</div>`;
     }
     const title = c.dupe
-      ? ` title="前一隻同為 ${esc(c.name)} 時視為重複，改抽 ${esc(c.dupe.name)}${c.dupe.to ? `，下一抽 ${esc(c.dupe.to)}` : ''}"`
-      : '';
+      ? ` title="${esc(mainName)}（前一隻同為 ${esc(c.name)} 時視為重複，改抽 ${esc(c.dupe.name)}${c.dupe.to ? `，下一抽 ${esc(c.dupe.to)}` : ''}）"`
+      : (displayMode === 'image' ? ` title="${esc(mainName)}"` : '');
     const rr = c.rarity;
     if (routeTargets.has(`cell:${e.banner.id}|${pos}`)) cls.push('target');
+    const gn = c.guaranteed?.name || '';
+    const dgn = c.dupeGuaranteed?.name || '';
     return (
       `<td class="${cls.join(' ')}"${title} data-r="${esc(rr)}" data-n="${esc(mainName)}"` +
-      ` data-pos="${esc(pos)}" data-bi="${bi}" data-bid="${esc(e.banner.id)}">${esc(mainName)}${dupeNote}${guar}</td>`
+      ` data-gn="${esc(gn)}" data-dgn="${esc(dgn)}"` +
+      ` data-pos="${esc(pos)}" data-bi="${bi}" data-bid="${esc(e.banner.id)}">` +
+      `<span class="cell-main">${avatar}<span class="cell-name">${esc(mainName)}</span></span>${dupeNote}${guar}</td>`
     );
   }
 
@@ -254,7 +285,7 @@ function effRarity(td) {
   return actualRarity(td.getAttribute('data-n'), td.getAttribute('data-r'), short, catMap);
 }
 
-let findMatches = []; // [{td, pos, bi, name, rarity}]，供矩陣與跳轉用
+let findMatches = []; // [{td, pos, bi, name, rarity, origRarity, isGuar}]，供矩陣與跳轉用
 function applyFind() {
   const n = document.querySelector('#find-name').value.trim();
   const rv = document.querySelector('#find-rarity').value;
@@ -265,17 +296,38 @@ function applyFind() {
     const er = effRarity(td);
     // exclusive（限定）比原始 class；其餘比實際稀有度
     const okR = !rv || (rv === 'exclusive' ? td.getAttribute('data-r') === 'exclusive' : grp.includes(er));
-    const okN = !n || td.getAttribute('data-n').includes(n);
-    const hit = !!active && okR && okN;
-    td.classList.toggle('found', hit);
-    if (hit) {
+    const mainName = td.getAttribute('data-n') || '';
+    const gn = td.getAttribute('data-gn') || '';
+    const dgn = td.getAttribute('data-dgn') || '';
+
+    const hitMain = !!active && okR && (!n || mainName.includes(n));
+    // 必中欄位（超激稀有以上）
+    const okRGuar = !rv || grp.includes('uber') || grp.includes('legend');
+    const hitGuar = !!active && okRGuar && !!n && (gn.includes(n) || dgn.includes(n));
+
+    td.classList.toggle('found', hitMain || hitGuar);
+    td.classList.toggle('found-guar', hitGuar);
+    if (hitMain) {
       findMatches.push({
         td,
         pos: td.getAttribute('data-pos'),
         bi: Number(td.getAttribute('data-bi')),
-        name: td.getAttribute('data-n'),
+        name: mainName,
         rarity: er, // 實際稀有度（/cats 對照表為準，白金/黑金必超激）：供比對/篩選
         origRarity: td.getAttribute('data-r'), // 原始天然稀有度：色條沿用 godfat 底色
+        isGuar: false,
+      });
+    }
+    if (hitGuar) {
+      const gName = gn.includes(n) ? gn : dgn;
+      findMatches.push({
+        td,
+        pos: td.getAttribute('data-pos'),
+        bi: Number(td.getAttribute('data-bi')),
+        name: gName,
+        rarity: 'uber',
+        origRarity: 'uber',
+        isGuar: true,
       });
     }
   }
@@ -303,10 +355,12 @@ function renderFindPopup(active) {
   // 列＝命中的抽數（A/B 合併為同一列）；欄＝命中的卡池（B 軌開啟時各拆 A|B 子欄，對齊主表）
   const rows = [...new Set(findMatches.map((m) => parseInt(m.pos, 10)))].sort((a, b) => a - b);
   const cols = [...new Set(findMatches.map((m) => m.bi))].sort((a, b) => a - b);
-  const matchByCell = new Map(); // `${n}|${bi}|${track}` -> match index
+  const matchByCell = new Map(); // `${n}|${bi}|${track}` -> [match index, ...]
   findMatches.forEach((m, i) => {
     const track = m.pos.endsWith('B') ? 'B' : 'A';
-    matchByCell.set(`${parseInt(m.pos, 10)}|${m.bi}|${track}`, i);
+    const key = `${parseInt(m.pos, 10)}|${m.bi}|${track}`;
+    if (!matchByCell.has(key)) matchByCell.set(key, []);
+    matchByCell.get(key).push(i);
   });
 
   if (!rows.length) {
@@ -316,11 +370,14 @@ function renderFindPopup(active) {
 
   const cellFor = (n, bi, track) => {
     const b = track === 'B' ? ' btrack' : '';
-    const mi = matchByCell.get(`${n}|${bi}|${track}`);
-    if (mi == null) return `<td class="${b.trim()}"></td>`; // 該子欄此抽數非命中 → 留空
-    const m = findMatches[mi];
-    // 色條用原始天然稀有度（保留 godfat 可分辨的底色），比對仍依有效稀有度
-    return `<td class="hit r-${esc(m.origRarity)}${b}" data-i="${mi}" title="${esc(m.name)}">${esc(m.name)}</td>`;
+    const mis = matchByCell.get(`${n}|${bi}|${track}`);
+    if (!mis || !mis.length) return `<td class="${b.trim()}"></td>`; // 該子欄此抽數非命中 → 留空
+    const inner = mis.map((mi) => {
+      const m = findMatches[mi];
+      const tag = m.isGuar ? '<span class="find-gu-badge">保證</span> ' : '';
+      return `<div class="hit r-${esc(m.origRarity)}" data-i="${mi}" title="${m.isGuar ? '保證必中：' : ''}${esc(m.name)}">${tag}${esc(m.name)}</div>`;
+    }).join('');
+    return `<td class="${b.trim()}">${inner}</td>`;
   };
 
   const head1 =
@@ -348,6 +405,8 @@ function jumpToMatch(i) {
   const m = findMatches[i];
   if (!m) return;
   m.td.scrollIntoView({ block: 'center', inline: 'center' });
+  m.td.classList.remove('flash');
+  void m.td.offsetWidth;
   m.td.classList.add('flash');
   setTimeout(() => m.td.classList.remove('flash'), 1300);
 }
@@ -454,7 +513,16 @@ function catAccept(name) {
   const acc = new Set();
   const merged = mergeBanners(currentEntries);
   for (const [pos, byBanner] of merged.byPos) {
-    for (const [bid, c] of byBanner) if (c.name === name || c.dupe?.name === name) acc.add(`${bid}|${pos}`);
+    for (const [bid, c] of byBanner) {
+      if (
+        c.name === name ||
+        c.dupe?.name === name ||
+        c.guaranteed?.name === name ||
+        c.dupeGuaranteed?.name === name
+      ) {
+        acc.add(`${bid}|${pos}`);
+      }
+    }
   }
   return acc;
 }
@@ -479,7 +547,7 @@ function addFindAsTargets() {
 const RARITY_SEQ = ['legend', 'uber', 'supa', 'rare', 'special', 'normal'];
 const RARITY_LABEL = { legend: '傳說', uber: '超激', supa: '激稀有', rare: '稀有', special: '特殊', normal: '基本' };
 
-// 只看未隱藏卡池、顯示抽數視野內；主格與重抽附註的貓名皆算「出現」；目錄查無者不列、另計數
+// 只看未隱藏卡池、顯示抽數視野內；主格與重抽附註、必中欄位的貓名皆算「出現」；目錄查無者不列、另計數
 function collectUnownedInTable() {
   const seen = new Set();
   const groups = new Map(); // rarity -> [name]
@@ -489,7 +557,7 @@ function collectUnownedInTable() {
   for (const [pos, byBanner] of merged.byPos) {
     if (parseInt(pos, 10) > useCount) continue; // 快取可能大於顯示抽數 → 與畫面視野一致
     for (const c of byBanner.values()) {
-      for (const name of [c.name, c.dupe?.name]) {
+      for (const name of [c.name, c.dupe?.name, c.guaranteed?.name, c.dupeGuaranteed?.name]) {
         if (!name || seen.has(name)) continue;
         seen.add(name);
         const hit = catMap?.get(name);
@@ -589,19 +657,43 @@ let menuCtx = null; // { bid, pos, name }
 function closeCellMenu() { cellMenu.hidden = true; menuCtx = null; }
 
 function openCellMenu(td, x, y) {
-  menuCtx = { bid: td.getAttribute('data-bid'), pos: td.getAttribute('data-pos'), name: td.getAttribute('data-n') };
+  menuCtx = {
+    bid: td.getAttribute('data-bid'),
+    pos: td.getAttribute('data-pos'),
+    name: td.getAttribute('data-n'),
+    gn: td.getAttribute('data-gn') || '',
+    dgn: td.getAttribute('data-dgn') || '',
+  };
   const hasCell = routeTargets.has(`cell:${menuCtx.bid}|${menuCtx.pos}`);
   const hasCat = routeTargets.has(`cat:${menuCtx.name}`);
   const cid = catIdOf(menuCtx.name);
   const ownBtn = cid == null
     ? '<button data-act="own" disabled title="目錄查無此貓（離線或目錄未更新），暫無法標記">標記為已擁有</button>'
     : `<button data-act="own">${ownedData.ids.has(cid) ? '取消已擁有標記' : '標記為已擁有'}</button>`;
+
+  const gName = menuCtx.gn || menuCtx.dgn;
+  let guarBtns = '';
+  if (gName && gName !== menuCtx.name) {
+    const hasGuarCat = routeTargets.has(`cat:${gName}`);
+    const gCid = catIdOf(gName);
+    const ownGBtn = gCid == null
+      ? ''
+      : `<button data-act="own-guar">${ownedData.ids.has(gCid) ? `取消已擁有（必中：${esc(gName)}）` : `標記為已擁有（必中：${esc(gName)}）`}</button>`;
+    guarBtns =
+      `<div class="menu-divider"></div>` +
+      `<button data-act="guar-cat">${hasGuarCat ? `移除必中目標：${esc(gName)}` : `加入必中目標：${esc(gName)}`}</button>` +
+      ownGBtn +
+      `<button data-act="find-guar">搜尋必中貓：${esc(gName)}</button>` +
+      `<button data-act="copy-guar">複製必中貓名</button>`;
+  }
+
   cellMenu.innerHTML =
     `<button data-act="cell">${hasCell ? '移除此位置目標' : '加入此位置目標'}</button>` +
     `<button data-act="cat">${hasCat ? '移除此貓目標' : '加入此貓目標（所有出現）'}</button>` +
     ownBtn +
     `<button data-act="find">搜尋此貓</button>` +
-    `<button data-act="copy">複製貓咪名稱</button>`;
+    `<button data-act="copy">複製貓咪名稱</button>` +
+    guarBtns;
   cellMenu.hidden = false;
   // 先顯示取得尺寸再定位（防超出視窗右/下緣）
   cellMenu.style.left = `${Math.min(x, window.innerWidth - cellMenu.offsetWidth - 8)}px`;
@@ -611,15 +703,24 @@ function openCellMenu(td, x, y) {
 cellMenu.addEventListener('click', (ev) => {
   const btn = ev.target.closest('button[data-act]');
   if (!btn || !menuCtx) return;
-  const { bid, pos, name } = menuCtx;
+  const { bid, pos, name, gn, dgn } = menuCtx;
+  const gName = gn || dgn;
   const act = btn.getAttribute('data-act');
   if (act === 'cell') toggleCellTarget(bid, pos, name);
   else if (act === 'cat') toggleCatTarget(name);
+  else if (act === 'guar-cat') toggleCatTarget(gName);
   else if (act === 'find') {
     document.querySelector('#find-rarity').value = ''; // 清空稀有度篩選，避免濾掉此貓
     document.querySelector('#find-name').value = name;
     applyFind();
     document.querySelector('#find-popup').classList.remove('collapsed'); // 展開結果抽屜
+    updateFindToggle();
+  }
+  else if (act === 'find-guar') {
+    document.querySelector('#find-rarity').value = '';
+    document.querySelector('#find-name').value = gName;
+    applyFind();
+    document.querySelector('#find-popup').classList.remove('collapsed');
     updateFindToggle();
   }
   else if (act === 'own') {
@@ -633,7 +734,19 @@ cellMenu.addEventListener('click', (ev) => {
       updateAddUnowned();
     }
   }
+  else if (act === 'own-guar') {
+    const cid = catIdOf(gName);
+    if (cid != null) {
+      if (ownedData.ids.has(cid)) ownedData.ids.delete(cid);
+      else ownedData.ids.add(cid);
+      ownedData.oDirty = true;
+      saveOwned(ownedData);
+      applyOwnedMarks();
+      updateAddUnowned();
+    }
+  }
   else if (act === 'copy') navigator.clipboard?.writeText(name).catch(() => {});
+  else if (act === 'copy-guar') navigator.clipboard?.writeText(gName).catch(() => {});
   closeCellMenu();
 });
 
@@ -697,11 +810,26 @@ function renderPlanList(result) {
     `<div class="err">無法收齊全部：${result.unreachable
       .map((u) => `${esc(routeTargets.get(u.id)?.label || u.id)}（${REASON_LABEL[u.reason] || u.reason}）`)
       .join('、')}${tail}</div>`;
-  if (!result.plans.length) { body.innerHTML = warn || '<p class="empty">無方案</p>'; return; }
+
+  const anyGuarConfigured = currentEntries.some((e) => Number(guFor(e.banner.id)) || guaranteedSize(e.parsed.cells));
+  const hasGuarCandidateInTargets = [...routeTargets.values()].some((t) => {
+    for (const e of currentEntries) {
+      for (const c of e.parsed.cells.values()) {
+        if (c.guaranteed?.name === t.name || c.dupeGuaranteed?.name === t.name) return true;
+      }
+    }
+    return false;
+  });
+  let guarHint = '';
+  if (!anyGuarConfigured && hasGuarCandidateInTargets) {
+    guarHint = '<div class="hint" style="margin-top:6px;color:var(--accent);">💡 提示：部分目標為必中貓，若要規劃必中路線，請在「保證批次」或卡池開關旁下拉選單選擇「強制11連」。</div>';
+  }
+
+  if (!result.plans.length) { body.innerHTML = (warn || '<p class="empty">無方案</p>') + guarHint; return; }
   const rows = result.plans.map((p, i) =>
     `<tr data-i="${i}"><td>${i + 1}</td><td>${p.cost.pulls}</td><td>${p.cost.gu}</td><td>${p.cost.plat}</td>` +
     `<td>${p.cost.legend}</td><td>${p.cost.switches}</td></tr>`).join('');
-  body.innerHTML = warn + '<div id="route-note" class="hint"></div>' +
+  body.innerHTML = warn + guarHint + '<div id="route-note" class="hint"></div>' +
     `<table class="plan-grid"><thead><tr><th>#</th><th>抽數</th><th>GU</th><th>白金券</th><th>傳說券</th><th>換軌</th></tr></thead>` +
     `<tbody>${rows}</tbody></table>`;
   showPlanPath(result.plans[0]);
@@ -961,6 +1089,9 @@ if (!seed || eventIds.length === 0) {
   loadCatList(lang).then((m) => {
     if (!m) return;
     catMap = m.catMap;
+    if (displayMode !== 'text' && currentEntries.length) {
+      renderTable(currentEntries);
+    }
     applyFind();
     applyOwnedMarks();
     updateAddUnowned();

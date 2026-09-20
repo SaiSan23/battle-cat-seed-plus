@@ -340,6 +340,33 @@ table.find-grid td.r-legend { border-left-color: var(--r-legend); }
 td.dupe { border-left: 3px solid var(--danger-fg); }
 .dupe-note { font-size: 11px; color: var(--danger-fg); margin-top: 1px; }
 
+/* 貓咪小圖示與呈現模式 */
+.cell-main { display: inline-flex; align-items: center; }
+.cell-avatar { width: 24px; height: 20px; object-fit: contain; vertical-align: middle; border-radius: 2px; margin-right: 4px; flex-shrink: 0; }
+#grid td.img-only .cell-name { display: none; }
+#grid td.img-only .cell-avatar { width: 28px; height: 23px; margin-right: 0; }
+
+/* 必中命中樣式與標籤 */
+.find-gu-badge {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--gu);
+  color: #fff;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-right: 3px;
+}
+td.found-guar .guar {
+  background: var(--accent-weak);
+  outline: 2px solid var(--gu);
+  outline-offset: 1px;
+  border-radius: 2px;
+  padding: 1px 3px;
+}
+
 /* A/B 子欄 */
 thead tr:nth-child(3) th { top: 52px; }
 thead th.hend { box-shadow: 0 1px 0 var(--border); }
@@ -428,6 +455,7 @@ tbody td.path-gu { outline: 3px double var(--gu); outline-offset: -3px; }
 #cell-menu button { border: none; background: none; text-align: left; font: inherit; padding: 7px 10px;
   border-radius: 4px; cursor: pointer; color: var(--text); white-space: nowrap; }
 #cell-menu button:hover { background: var(--accent-weak); color: var(--accent); }
+#cell-menu .menu-divider { height: 1px; background: var(--border); margin: 4px 2px; }
 
 /* 批次目標選擇面板：置中浮層 */
 #unowned-pick {

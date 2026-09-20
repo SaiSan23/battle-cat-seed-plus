@@ -480,3 +480,18 @@ test('planRoutes：options.catRarity 傳入後路線依實際稀有度判定撞�
   assert.equal(r.plans[0].cost.pulls, 3);
   assert.ok(r.plans[0].steps.some((s) => s.pos === '3B' && s.collected.length));
 });
+
+test('planRoutes：必中目標帶 accept 時在未開 GU 卡池回報 conflict 非 beyond-count', () => {
+  const m = M({ X: [
+    C('1A', 'a', 'supa'),
+    C('2A', 'b', 'supa', { guaranteed: { name: 'UBER_G', rarity: 'uber', to: '4B' } }),
+    C('3A', 'c', 'supa'),
+  ] });
+  // 卡池未開啟 GU（gu: 0）
+  const banners = [{ id: 'X', short: '特麗希', gu: 0 }];
+  const r = planRoutes({ merged: m, banners,
+    targets: [{ id: 'cat:UBER_G', kind: 'cat', name: 'UBER_G', accept: new Set(['X|2A']) }] });
+  assert.equal(r.feasible, false);
+  assert.equal(r.unreachable[0].reason, 'conflict');
+});
+
